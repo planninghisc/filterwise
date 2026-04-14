@@ -1,0 +1,26 @@
+/* src/app/globals.css 또는 src/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ✅ 조선일보명조체 */
+@font-face {
+  font-family: 'Chosunilbo_myungjo';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2107@1.1/Chosunilbo_myungjo.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* ✅ 리디바탕체 */
+@font-face {
+  font-family: 'RIDIBatang';
+  src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_twelve@1.0/RIDIBatang.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+
+
+/* ✅ 글로벌 적용도 가능 */
+html, body {
+  @apply font-ridi text-black;
+}

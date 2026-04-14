@@ -1,0 +1,32 @@
+// src/app/api/news/update-category/route.ts
+import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+export const dynamic = 'force-dynamic'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+export async function POST(request: Request) {
+  try {
+    const { id, category } = await request.json()
+
+    if (!id || !category) {
+      return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+    }
+
+    // DB 업데이트
+    const { error } = await supabase
+      .from('news_articles')
+      .update({ category: category }) // 예: 'research' or 'general'
+      .eq('id', id)
+
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}

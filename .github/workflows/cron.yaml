@@ -1,0 +1,17 @@
+# .github/workflows/cron.yaml
+name: 5-Minute News Alert Cron
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # 5분마다 실행
+  workflow_dispatch: # 수동 실행 가능 버튼
+
+jobs:
+  trigger-alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Vercel API
+        run: |
+          curl -X GET ${{ secrets.APP_URL }}/api/cron/news-alert \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET_KEY }}" \
+          --fail
