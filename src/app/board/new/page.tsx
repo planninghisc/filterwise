@@ -90,7 +90,7 @@ export default function BoardNewPage() {
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800 disabled:opacity-60"
+            className="px-4 py-2 rounded bg-[#ea580c] text-white hover:bg-[#c2410c] disabled:opacity-60"
           >
             {saving ? '등록 중…' : '등록'}
           </button>

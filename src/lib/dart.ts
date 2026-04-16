@@ -2,7 +2,23 @@
 
 export type ReprtCode = '11011' | '11012' | '11013' | '11014'
 export type FsDiv = 'OFS' | 'CFS'
-export type SjDiv = 'BS' | 'CIS'
+/** OpenDART fnltt API → dart_fnltt.sj_div (주석·XBRL 세부 라인은 API 미제공) */
+export type SjDiv = 'BS' | 'CIS' | 'CF' | 'SCE'
+
+/**
+ * OpenDART financial statement API 응답의 sj_div 값을 DB 저장용으로 정규화합니다.
+ * 예전 코드는 CIS가 아닌 값을 모두 BS로 몰아 CF·자본변동이 BS에 섞일 수 있었습니다.
+ */
+export function normalizeDartSjDiv(v: unknown): SjDiv {
+  const s = String(v ?? '')
+    .trim()
+    .toUpperCase()
+  if (s === 'CIS' || s === 'IS' || s === 'PL') return 'CIS'
+  if (s === 'BS') return 'BS'
+  if (s === 'CF') return 'CF'
+  if (s === 'SCE' || s === 'EQ' || s === 'SE') return 'SCE'
+  return 'BS'
+}
 
 export type DartListResponse<T> = {
   status?: string

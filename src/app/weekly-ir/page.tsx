@@ -309,20 +309,20 @@ export default function WeeklyIRPage() {
       {/* 상단 컨트롤 패널 */}
       <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 sticky top-16 z-30">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Weekly IR 리포트</h1>
+          <h1 className="text-2xl font-bold text-[#c2410c]">Weekly IR 리포트</h1>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <input 
             type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            className="rounded-lg border border-gray-300 p-2 text-sm outline-none focus:ring-2 focus:ring-orange-300"
           />
-          <button onClick={handleFetchData} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 text-sm">
+          <button onClick={handleFetchData} disabled={isLoading} className="rounded-lg bg-[#ea580c] px-4 py-2 text-sm font-bold text-white hover:bg-[#c2410c] disabled:opacity-50">
             {isLoading ? '수집 중...' : '1단계: 데이터 불러오기'}
           </button>
           
           <div className="h-6 w-px bg-gray-300 mx-1"></div>
 
-          <button onClick={handleSaveReport} disabled={isSaving} className="flex items-center gap-1 bg-gray-800 text-white px-4 py-2 rounded-lg font-bold hover:bg-black disabled:opacity-50 text-sm">
+          <button onClick={handleSaveReport} disabled={isSaving} className="flex items-center gap-1 rounded-lg bg-[#ea580c] px-4 py-2 text-sm font-bold text-white hover:bg-[#c2410c] disabled:opacity-50">
             <Save className="w-4 h-4" /> {isSaving ? '저장 중...' : '리포트 저장'}
           </button>
           <button onClick={handleDownloadExcel} disabled={!stockData} className="flex items-center gap-1 bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50 text-sm">
@@ -336,7 +336,7 @@ export default function WeeklyIRPage() {
         <section className="p-6 border-b border-gray-100">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-sm">1</span> 수기 입력 및 자동 계산
+              <span className="rounded bg-orange-100 px-2 py-0.5 text-sm text-[#c2410c]">1</span> 수기 입력 및 자동 계산
             </h2>
             <div className="flex gap-2">
               <button onClick={() => setIsRawDataModalOpen(true)} disabled={rawData.length === 0} className="flex items-center gap-1 text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-bold hover:bg-gray-200 disabled:opacity-50">
@@ -363,7 +363,7 @@ export default function WeeklyIRPage() {
                     <td className="border p-3 font-semibold text-center bg-gray-50">당사(한화)</td>
                     <td className="border p-3 text-right">{stockData.hanwha.start.toLocaleString()}원</td>
                     <td className="border p-3 text-right">{stockData.hanwha.end.toLocaleString()}원</td>
-                    <td className="border p-3 text-right font-bold text-blue-600">{stockData.hanwha.rate > 0 ? '+' : ''}{stockData.hanwha.rate.toFixed(2)}%</td>
+                    <td className="border p-3 text-right font-bold text-[#ea580c]">{stockData.hanwha.rate > 0 ? '+' : ''}{stockData.hanwha.rate.toFixed(2)}%</td>
                   </tr>
                   <tr>
                     <td className="border p-3 font-semibold text-center bg-yellow-50 text-yellow-800">증권업종지수 (수기)</td>
@@ -375,9 +375,9 @@ export default function WeeklyIRPage() {
                     </td>
                     <td className="border p-3 text-right font-bold text-gray-700 bg-yellow-50/30">{sectorRate > 0 ? '+' : ''}{sectorRate.toFixed(2)}%</td>
                   </tr>
-                  <tr className="bg-blue-50">
-                    <td colSpan={3} className="border p-3 font-bold text-center text-blue-900">당사 주가 - 증권업종 등락률 차이</td>
-                    <td className="border p-3 text-right font-bold text-blue-900">{diffRate > 0 ? '+' : ''}{diffRate.toFixed(2)}%</td>
+                  <tr className="bg-orange-50">
+                    <td colSpan={3} className="border p-3 text-center font-bold text-[#9a3412]">당사 주가 - 증권업종 등락률 차이</td>
+                    <td className="border p-3 text-right font-bold text-[#9a3412]">{diffRate > 0 ? '+' : ''}{diffRate.toFixed(2)}%</td>
                   </tr>
                   <tr>
                     <td className="border p-3 font-semibold text-center bg-green-50 text-green-800">주간 수급 (단위: 만주)</td>
@@ -394,11 +394,11 @@ export default function WeeklyIRPage() {
         {/* 섹션 2: 주요 지수 */}
         <section className="p-6 border-b border-gray-100 bg-gray-50/50">
           <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-sm">2</span> 주요 지수 및 당사 주가
+              <span className="rounded bg-orange-100 px-2 py-0.5 text-sm text-[#c2410c]">2</span> 주요 지수 및 당사 주가
           </h2>
           <textarea
             value={marketText} onChange={(e) => setMarketText(e.target.value)}
-            className="w-full h-56 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-y leading-relaxed text-sm bg-white"
+            className="h-56 w-full resize-y rounded-lg border border-gray-300 bg-white p-4 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-orange-300"
           />
         </section>
 
@@ -406,9 +406,9 @@ export default function WeeklyIRPage() {
         <section className="p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-sm">3</span> 언론 모니터링
+              <span className="rounded bg-orange-100 px-2 py-0.5 text-sm text-[#c2410c]">3</span> 언론 모니터링
             </h2>
-            <button onClick={openNewsModal} className="flex items-center gap-1 text-sm bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-800">
+            <button onClick={openNewsModal} className="flex items-center gap-1 rounded-lg bg-[#ea580c] px-3 py-1.5 text-sm text-white hover:bg-[#c2410c]">
               <Search className="w-4 h-4" /> 뉴스 선택하기
             </button>
           </div>
@@ -461,7 +461,7 @@ export default function WeeklyIRPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="bg-white p-3 rounded border border-indigo-100 shadow-sm"><p className="font-bold text-indigo-800 mb-1">예상 KOSPI</p><p>{aiPreview.kospi_band}</p></div>
                      <div className="bg-white p-3 rounded border border-indigo-100 shadow-sm"><p className="font-bold text-red-600 mb-1">상승 요인</p><ul className="list-disc pl-5 space-y-1">{aiPreview.up_factors.map((f: string, i: number) => <li key={i}>{f}</li>)}</ul></div>
-                     <div className="bg-white p-3 rounded border border-indigo-100 shadow-sm"><p className="font-bold text-blue-600 mb-1">하락 요인</p><ul className="list-disc pl-5 space-y-1">{aiPreview.down_factors.map((f: string, i: number) => <li key={i}>{f}</li>)}</ul></div>
+                     <div className="bg-white p-3 rounded border border-indigo-100 shadow-sm"><p className="font-bold text-[#ea580c] mb-1">하락 요인</p><ul className="list-disc pl-5 space-y-1">{aiPreview.down_factors.map((f: string, i: number) => <li key={i}>{f}</li>)}</ul></div>
                      <div className="bg-white p-3 rounded border border-indigo-100 shadow-sm"><p className="font-bold text-gray-700 mb-1">주요 이벤트</p><ul className="list-disc pl-5 space-y-1 text-gray-600">{aiPreview.events.map((f: string, i: number) => <li key={i}>{f}</li>)}</ul></div>
                   </div>
                   <div className="bg-white p-4 rounded border border-indigo-200 mt-4 shadow-sm">
@@ -530,9 +530,9 @@ export default function WeeklyIRPage() {
             <div className="p-5 border-b bg-gray-50 space-y-3">
               <div className="flex justify-between items-center border-b pb-2">
                 <div className="flex gap-4">
-                  <button onClick={() => setNewsFilter('all')} className={`pb-1 px-1 ${newsFilter === 'all' ? 'border-b-2 border-blue-600 font-bold text-blue-600' : 'text-gray-500 hover:text-gray-800'}`}>전체 뉴스</button>
-                  <button onClick={() => setNewsFilter('research')} className={`pb-1 px-1 ${newsFilter === 'research' ? 'border-b-2 border-blue-600 font-bold text-blue-600' : 'text-gray-500 hover:text-gray-800'}`}>리서치 뉴스</button>
-                  <button onClick={() => setNewsFilter('other')} className={`pb-1 px-1 ${newsFilter === 'other' ? 'border-b-2 border-blue-600 font-bold text-blue-600' : 'text-gray-500 hover:text-gray-800'}`}>기타 뉴스</button>
+                  <button onClick={() => setNewsFilter('all')} className={`pb-1 px-1 ${newsFilter === 'all' ? 'border-b-2 border-[#ea580c] font-bold text-[#ea580c]' : 'text-gray-500 hover:text-gray-800'}`}>전체 뉴스</button>
+                  <button onClick={() => setNewsFilter('research')} className={`pb-1 px-1 ${newsFilter === 'research' ? 'border-b-2 border-[#ea580c] font-bold text-[#ea580c]' : 'text-gray-500 hover:text-gray-800'}`}>리서치 뉴스</button>
+                  <button onClick={() => setNewsFilter('other')} className={`pb-1 px-1 ${newsFilter === 'other' ? 'border-b-2 border-[#ea580c] font-bold text-[#ea580c]' : 'text-gray-500 hover:text-gray-800'}`}>기타 뉴스</button>
                 </div>
                 {/* ✅ 전체 선택 버튼 추가 */}
                 <button onClick={selectAllFilteredNews} className="flex items-center gap-1 text-sm bg-gray-200 text-gray-700 px-3 py-1 rounded hover:bg-gray-300 transition">
@@ -540,8 +540,8 @@ export default function WeeklyIRPage() {
                 </button>
               </div>
               <div className="flex gap-2">
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchNews()} placeholder="결과 내 재검색 (선택사항)" className="flex-1 border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
-                <button onClick={() => handleSearchNews(false)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">검색</button>
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchNews()} placeholder="결과 내 재검색 (선택사항)" className="flex-1 border p-2 rounded-lg outline-none focus:ring-2 focus:ring-orange-300"/>
+                <button onClick={() => handleSearchNews(false)} className="bg-[#ea580c] text-white px-4 py-2 rounded-lg font-bold hover:bg-[#c2410c]">검색</button>
               </div>
             </div>
 
@@ -553,7 +553,7 @@ export default function WeeklyIRPage() {
                     const isAlreadyAdded = !!selectedNews.find(s => s.id === news.id);
                     return (
                       <li key={news.id} className="flex gap-3 p-3 border rounded-lg hover:border-blue-300 transition-colors">
-                        <input type="checkbox" checked={isChecked} disabled={isAlreadyAdded} onChange={() => toggleNewsSelection(news)} className="mt-1 w-4 h-4 text-blue-600 cursor-pointer"/>
+                        <input type="checkbox" checked={isChecked} disabled={isAlreadyAdded} onChange={() => toggleNewsSelection(news)} className="mt-1 h-4 w-4 cursor-pointer text-[#ea580c]"/>
                         <div>
                           <p className={`text-sm font-medium ${isAlreadyAdded ? 'text-gray-400' : 'text-gray-900'}`}>
                             <span className="font-bold text-gray-500 mr-1">[{news.publisher || '언론사'}]</span> {news.title}
@@ -573,7 +573,7 @@ export default function WeeklyIRPage() {
             <div className="p-5 flex justify-end gap-3 border-t bg-gray-50 rounded-b-2xl">
               <span className="text-sm text-gray-500 self-center mr-auto">{tempSelectedNews.length}개 선택됨</span>
               <button onClick={() => setIsNewsModalOpen(false)} className="px-4 py-2 bg-white border rounded-lg hover:bg-gray-100">취소</button>
-              <button onClick={confirmNewsSelection} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">확인</button>
+              <button onClick={confirmNewsSelection} className="px-4 py-2 rounded-lg bg-[#ea580c] font-bold text-white hover:bg-[#c2410c]">확인</button>
             </div>
           </div>
         </div>

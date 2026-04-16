@@ -2,7 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { CANON_OPTIONS, classifyToCanon, type CanonKey } from '@/lib/accountCanonical'
-import type { ReprtCode, FsDiv, SjDiv } from '@/lib/dart'
+import { normalizeDartSjDiv, type ReprtCode, type FsDiv, type SjDiv } from '@/lib/dart'
+
+type CanonSjDiv = 'BS' | 'CIS'
+const asCanonSjDiv = (v: string): CanonSjDiv | null => (v === 'BS' || v === 'CIS' ? v : null)
 
 type FnlttRow = {
   corp_code: string
@@ -18,7 +21,6 @@ type FnlttRow = {
   canon_score?: number | null
   thstrm_amount: number | null
   frmtrm_amount: number | null
-  dart_corp?: { corp_name?: string | null } | null
 }
 
 type CompareRow = {
@@ -28,12 +30,6 @@ type CompareRow = {
   frmtrm_amount: number
 }
 
-/** UI에서 'PL'을 보내도 DB는 'CIS'를 쓰므로 안전하게 매핑 */
-function normalizeSjDiv(v?: string | null): SjDiv {
-  const s = (v ?? '').toUpperCase()
-  if (s === 'CIS' || s === 'PL' || s === 'IS') return 'CIS'
-  return 'BS'
-}
 
 // 모든 CanonKey 집합 (타입 가드용)
 const ALL_CANON_KEYS: readonly CanonKey[] = [
@@ -54,7 +50,7 @@ export async function GET(req: NextRequest) {
     const fsDiv = (searchParams.get('fs_div') ?? 'OFS') as FsDiv
 
     // 🔒 'PL' → 'CIS' 자동 정규화
-    const sjDiv = normalizeSjDiv(searchParams.get('sj_div'))
+    const sjDiv = normalizeDartSjDiv(searchParams.get('sj_div'))
 
     const canonKeyRaw = (searchParams.get('canon_key') ?? '').trim()
     const canonKey: CanonKey | null = canonKeyRaw && isCanonKey(canonKeyRaw) ? (canonKeyRaw as CanonKey) : null
@@ -82,8 +78,7 @@ export async function GET(req: NextRequest) {
       .select(`
         corp_code, bsns_year, reprt_code, fs_div, sj_div,
         account_nm, account_id, account_nm_norm, account_id_norm,
-        canon_key, canon_score, thstrm_amount, frmtrm_amount,
-        dart_corp:corp_code ( corp_name )
+        canon_key, canon_score, thstrm_amount, frmtrm_amount
       `)
       .eq('bsns_year', year)
       .eq('reprt_code', reprt)
@@ -101,6 +96,26 @@ export async function GET(req: NextRequest) {
     const { data, error } = await q
     if (error) throw error
     const rows = (data ?? []) as FnlttRow[]
+
+    const codesForNames =
+      corpCodes.length > 0 ? corpCodes : [...new Set(rows.map((r) => r.corp_code))]
+    const nameByCode = new Map<string, string>()
+    if (codesForNames.length > 0) {
+      const { data: corpRows, error: corpErr } = await supabaseAdmin
+        .from('dart_corp')
+        .select('corp_code, corp_name')
+        .in('corp_code', codesForNames)
+      if (corpErr) {
+        console.warn('[compare] dart_corp lookup skipped:', corpErr.message)
+      } else {
+        for (const c of corpRows ?? []) {
+          const row = c as { corp_code?: string; corp_name?: string | null }
+          if (row.corp_code)
+            nameByCode.set(row.corp_code, (row.corp_name ?? '').trim() || row.corp_code)
+        }
+      }
+    }
+    const corpLabel = (code: string) => nameByCode.get(code) || code
 
     const byCorp = new Map<string, CompareRow>()
 
@@ -124,7 +139,8 @@ export async function GET(req: NextRequest) {
           score = r.canon_score
         } else {
           // 2) 온더플라이 분류
-          const c = classifyToCanon(sjDiv, r.account_id, r.account_nm)
+          const canonSj = asCanonSjDiv(sjDiv)
+          const c = canonSj ? classifyToCanon(canonSj, r.account_id, r.account_nm) : null
           if (c && c.key === canonKey) {
             matched = true
             score = c.score
@@ -134,7 +150,7 @@ export async function GET(req: NextRequest) {
         if (!matched) continue
 
         const corp = r.corp_code
-        const corpName = r.dart_corp?.corp_name ?? corp
+        const corpName = corpLabel(corp)
         const th = r.thstrm_amount ?? 0
         const fr = r.frmtrm_amount ?? 0
         const prev = bucket.get(corp)
@@ -166,7 +182,7 @@ export async function GET(req: NextRequest) {
         seen.add(k)
 
         const corp = r.corp_code
-        const corpName = r.dart_corp?.corp_name ?? corp
+        const corpName = corpLabel(corp)
         const th = r.thstrm_amount ?? 0
         const fr = r.frmtrm_amount ?? 0
         const prev =

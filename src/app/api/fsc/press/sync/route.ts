@@ -29,9 +29,27 @@ const LIST = `${BASE}/no010101`
 
 /* -------------------- 유틸 -------------------- */
 function errorToString(err: unknown): string {
-  if (err instanceof Error) return `${err.name || 'Error'}: ${err.message || 'unknown error'}`
-  try { return JSON.stringify(err) } catch { return String(err) }
+  if (err instanceof Error) {
+    const base = `${err.name || 'Error'}: ${err.message || 'unknown error'}`
+    const c = (err as Error & { cause?: unknown }).cause
+    if (c instanceof Error) {
+      const ne = c as NodeJS.ErrnoException
+      const code = ne.code ? ` [${ne.code}]` : ''
+      return `${base} (cause: ${c.name}: ${c.message}${code})`
+    }
+    return base
+  }
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return String(err)
+  }
 }
+
+function sleep(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms))
+}
+
 function abs(href?: string | null): string {
   if (!href) return ''
   try { return new URL(href, BASE).toString() } catch { return href }
@@ -59,19 +77,39 @@ function looksLikeFileName(s: string): boolean {
 }
 
 /* -------------------- HTTP -------------------- */
+/** fsc.go.kr often resets parallel connections; retries, timeout, sequential list pages. */
 async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-      Referer: BASE,
-    },
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} (${url})`)
-  return await res.text()
+  const tryCount = 4
+  const timeoutMs = 25000
+  let lastErr: unknown
+  for (let attempt = 0; attempt < tryCount; attempt++) {
+    const controller = new AbortController()
+    const tid = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, {
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+          'Upgrade-Insecure-Requests': '1',
+          Referer: BASE,
+        },
+      })
+      clearTimeout(tid)
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} (${url})`)
+      return await res.text()
+    } catch (e) {
+      clearTimeout(tid)
+      lastErr = e
+      if (attempt < tryCount - 1) await sleep(500 * Math.pow(2, attempt))
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
 }
 
 /* -------------------- 목록 파서 -------------------- */
@@ -252,10 +290,15 @@ export async function GET(req: NextRequest) {
       return `${LIST}?${qs.toString()}`
     })
 
-    const listHtmls = await Promise.all(listUrls.map(async (u) => {
-      try { return await fetchText(u) }
-      catch (e) { throw new Error(`목록 수집 실패: ${errorToString(e)}`) }
-    }))
+    const listHtmls: string[] = []
+    for (const u of listUrls) {
+      try {
+        listHtmls.push(await fetchText(u))
+        await sleep(400)
+      } catch (e) {
+        throw new Error(`목록 수집 실패: ${errorToString(e)}`)
+      }
+    }
 
     const detailLinks = listHtmls.flatMap(extractListItems)
     if (detailLinks.length === 0) {

@@ -5,6 +5,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
+import { Lock, User } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 
 export default function LoginPage() {
@@ -64,53 +65,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-      <div className="w-full max-w-sm bg-white p-14 rounded-xl shadow-md">
-        <h1 className="text-2xl font-bold text-center mb-6"> Laboratory_31020 </h1>
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="w-full max-w-[380px] rounded-[2rem] bg-white p-8 shadow-xl sm:p-10">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <h1 className="mb-4 font-anchangho text-5xl font-bold text-[#ea580c]">FilterWise</h1>
+          <p className="text-sm font-medium text-gray-500">The power of properly accumulated data</p>
+        </div>
 
-        {errorMsg && (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {errorMsg}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="relative">
             <label className="sr-only" htmlFor="email">이메일</label>
+            <User className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <input
               id="email"
               type="email"
-              placeholder="아이디 (이메일)"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border-b border-gray-400 py-2 focus:outline-none"
+              className="w-full rounded-full border border-gray-300 bg-white py-3.5 pl-11 pr-4 text-sm text-gray-900 transition-colors focus:border-[#ea580c] focus:outline-none focus:ring-1 focus:ring-[#ea580c]"
+              placeholder="Enter your ID"
               autoComplete="email"
               required
             />
           </div>
 
-          <div>
+          <div className="relative">
             <label className="sr-only" htmlFor="password">비밀번호</label>
+            <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <input
               id="password"
               type="password"
-              placeholder="패스워드"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border-b border-gray-400 py-2 focus:outline-none"
+              className="w-full rounded-full border border-gray-300 bg-white py-3.5 pl-11 pr-4 text-sm text-gray-900 transition-colors focus:border-[#ea580c] focus:outline-none focus:ring-1 focus:ring-[#ea580c]"
+              placeholder="Enter your password"
               autoComplete="current-password"
               required
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg黑 py-2 text-white hover:bg-gray-800 disabled:opacity-60"
-            style={{ backgroundColor: '#000' }}
-          >
-            {loading ? '로그인 중…' : 'Login'}
-          </button>
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-full bg-[#ea580c] py-4 text-sm font-bold text-white shadow-md transition-all hover:bg-[#c2410c] active:scale-[0.98] disabled:bg-gray-400"
+            >
+              {loading ? '로그인 중...' : 'Login'}
+            </button>
+          </div>
+
+          {errorMsg && (
+            <p className="pt-1 text-center text-sm text-red-600">
+              {errorMsg}
+            </p>
+          )}
         </form>
       </div>
     </div>

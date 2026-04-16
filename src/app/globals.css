@@ -3,6 +3,14 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --fw-accent: #ea580c;
+  --fw-accent-strong: #c2410c;
+  --fw-bg: #fffaf5;
+  --fw-text: #1f2937;
+  --fw-muted: #6b7280;
+}
+
 /* ✅ 조선일보명조체 */
 @font-face {
   font-family: 'Chosunilbo_myungjo';
@@ -19,8 +27,47 @@
   font-style: normal;
 }
 
+@font-face {
+  font-family: 'KccAnchangho';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2402_1@1.0/KCC-Ahnchangho.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-anchangho {
+  font-family: 'KccAnchangho', sans-serif;
+}
 
 /* ✅ 글로벌 적용도 가능 */
 html, body {
-  @apply font-ridi text-black;
+  @apply font-ridi antialiased;
+  background-color: var(--fw-bg);
+  color: var(--fw-text);
+}
+
+h1, h2, h3 {
+  @apply tracking-tight;
+  line-height: 1.3;
+}
+
+p, li {
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--fw-accent);
+}
+
+a:hover {
+  color: var(--fw-accent-strong);
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea,
+  button {
+    font-size: 16px;
+  }
 }

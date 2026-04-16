@@ -6,6 +6,9 @@ import { normalizeAccountName, normalizeAccountId } from '@/lib/normalize'
 import { classifyToCanon } from '@/lib/accountCanonical'
 import type { ReprtCode, FsDiv, SjDiv } from '@/lib/dart'
 
+type CanonSjDiv = 'BS' | 'CIS'
+const asCanonSjDiv = (v: string): CanonSjDiv | null => (v === 'BS' || v === 'CIS' ? v : null)
+
 type Row = {
   id: number
   sj_div: SjDiv
@@ -38,7 +41,8 @@ export async function POST(req: NextRequest) {
     for (const r of rows) {
       const nmNorm = normalizeAccountName(r.account_nm)
       const idNorm = normalizeAccountId(r.account_id)
-      const cls = classifyToCanon(r.sj_div, r.account_id, r.account_nm)
+      const canonSj = asCanonSjDiv(r.sj_div)
+      const cls = canonSj ? classifyToCanon(canonSj, r.account_id, r.account_nm) : null
 
       const payload: Partial<Row> = {
         account_nm_norm: nmNorm,

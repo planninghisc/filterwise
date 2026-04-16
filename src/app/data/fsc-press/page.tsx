@@ -173,7 +173,7 @@ export default function FscPressPage() {
           <button
             onClick={onSearchDb}
             disabled={disabled || loading}
-            className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-40"
+            className="px-4 py-2 rounded-lg bg-[#ea580c] text-white hover:bg-[#c2410c] disabled:opacity-40"
           >
             {loading ? '조회 중…' : 'DB에서 조회'}
           </button>

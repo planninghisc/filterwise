@@ -14,7 +14,7 @@ interface WeatherData {
 
 // 🔹 외부/내부 링크 분리
 const externalLinks = [
-  { name: '금융투자협회', url: 'https://www.kofiabond.or.kr/' },
+  { name: '금융투자협회(채권정보)', url: 'https://www.kofiabond.or.kr/' },
   { name: '금융통계정보시스템', url: 'https://fisis.fss.or.kr/' },
   { name: 'DART', url: 'http://dart.fss.or.kr/' },
   { name: '금융감독원', url: 'https://www.fss.or.kr/' },
@@ -90,17 +90,17 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] p-6 xl:p-8 bg-white text-black">
+    <div className="min-h-[calc(100vh-4rem)] bg-[var(--fw-bg)] p-4 text-[var(--fw-text)] sm:p-6 xl:p-8">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
         className="mb-6"
       >
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          ✔︎ Just Do It!
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+          ✔︎ AI Market Intelligence
         </h1>
-        <p className="mt-1 text-sm text-gray-500">하싫핑 하하방</p>
+        <p className="mt-1 text-sm text-[var(--fw-muted)]">&nbsp;&nbsp;&nbsp;지능형 마켓 인텔리전스</p>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -171,7 +171,7 @@ export default function Home() {
                   href={l.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group block rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:shadow transition-shadow"
+                  className="group block rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition-all hover:border-orange-200 hover:shadow"
                 >
                   <span className="text-sm font-medium group-hover:underline break-all">
                     {l.name}
@@ -193,7 +193,7 @@ export default function Home() {
                   href={l.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group block rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:shadow transition-shadow"
+                  className="group block rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition-all hover:border-orange-200 hover:shadow"
                 >
                   <span className="text-sm font-medium group-hover:underline break-all">
                     {l.name}
@@ -239,12 +239,12 @@ function Card({
 }
 
 function CardTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-lg font-semibold tracking-tight">{children}</h2>
+  return <h2 className="text-lg font-semibold tracking-tight text-[#c2410c]">{children}</h2>
 }
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-gray-200 px-2.5 py-0.5 text-xs text-gray-500">
+    <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs text-[#c2410c]">
       {children}
     </span>
   )

@@ -152,7 +152,7 @@ export default function Page() {
             type="button"
             onClick={onQuery}
             disabled={queryLoading}
-            className="rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium shadow-sm hover:shadow disabled:opacity-50"
+            className="rounded-lg bg-[#ea580c] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#c2410c] hover:shadow disabled:opacity-50"
           >
             {queryLoading ? '조회 중…' : 'DB 조회'}
           </button>

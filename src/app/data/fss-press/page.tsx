@@ -117,11 +117,21 @@ export default function FssPressPage() {
       const res = await fetch(`/api/fss/press?${qs.toString()}`, { method: 'GET', cache: 'no-store' })
       const json: unknown = await res.json()
       if (!res.ok) {
-        const errMsg = (json as { error?: string }).error ?? 'API sync error'
+        const errBody = json as { error?: string; resultCode?: string; resultMsg?: string }
+        const detail =
+          errBody.resultCode || errBody.resultMsg
+            ? ` (코드: ${errBody.resultCode ?? '-'}, 메시지: ${errBody.resultMsg ?? '-'})`
+            : ''
+        const errMsg = (errBody.error ?? 'API sync error') + detail
         throw new Error(errMsg)
       }
-      const saved = (json as { saved?: number }).saved ?? 0
-      setSyncInfo(`동기화 완료: ${saved}건 저장`)
+      const body = json as { saved?: number; resultCode?: string; resultMsg?: string }
+      const saved = body.saved ?? 0
+      const hint =
+        saved === 0 && body.resultCode === '000'
+          ? ' (해당 기간·제목 조건에 맞는 보도가 없을 수 있습니다)'
+          : ''
+      setSyncInfo(`동기화 완료: ${saved}건 저장${hint}`)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '동기화 중 오류가 발생했습니다.'
       setError(msg)
@@ -215,7 +225,7 @@ export default function FssPressPage() {
           <button
             onClick={onSearchDb}
             disabled={disabled || loading}
-            className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-40"
+            className="px-4 py-2 rounded-lg bg-[#ea580c] text-white hover:bg-[#c2410c] disabled:opacity-40"
           >
             DB에서 조회
           </button>

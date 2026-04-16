@@ -4,8 +4,8 @@ import type { Metadata } from 'next'
 import PageLayoutSelector from '@/components/PageLayoutSelector' // [변경] 새로 만든 컴포넌트 import
 
 export const metadata: Metadata = {
-  title: 'Just Do It!',
-  description: 'mini MIS',
+  title: 'FilterWise',
+  description: '',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

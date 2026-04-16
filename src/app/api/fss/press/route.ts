@@ -184,7 +184,13 @@ export async function GET(request: Request) {
     const upstream = await fetch(apiUrl, {
       method: 'GET',
       cache: 'no-store',
-      headers: { Accept: 'application/json,text/plain,*/*' },
+      headers: {
+        Accept: 'application/json,text/plain,*/*',
+        'Accept-Language': 'ko-KR,ko;q=0.9',
+        Referer: 'https://www.fss.or.kr/',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
     })
     if (!upstream.ok) {
       return NextResponse.json(
@@ -195,6 +201,23 @@ export async function GET(request: Request) {
 
     const rawJson = await decodeBestJson(upstream)
     const normalized = normalizeJson(rawJson)
+
+    // bodoInfo: 환경에 따라 성공 코드를 "000" 또는 "1"로 주는 케이스가 있음.
+    // 실패는 주로 010/011/012/013/020 등이며, 성공 메시지는 "조회 성공." 패턴으로 내려온다.
+    const code = normalized.resultCode.trim()
+    const msg = normalized.resultMsg.trim()
+    const isSuccessCode = code === '000' || code === '1' || code === '01'
+    const isSuccessMsg = /조회\s*성공/.test(msg)
+    if (!isSuccessCode && !isSuccessMsg) {
+      return NextResponse.json(
+        {
+          error: msg || `FSS 오픈API 오류 (코드 ${code || 'unknown'})`,
+          resultCode: normalized.resultCode,
+          resultMsg: normalized.resultMsg,
+        },
+        { status: 502 }
+      )
+    }
 
     const filtered = normalized.result.filter((item) =>
       subject ? item.subject.toLowerCase().includes(subject.toLowerCase()) : true

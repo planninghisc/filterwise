@@ -166,8 +166,8 @@ export default function BoardPage() {
                 className={[
                   'px-3 py-1 rounded border whitespace-nowrap text-[clamp(12px,3.5vw,14px)]',
                   n === page
-                    ? 'border-black bg-black text-white'
-                    : 'border-gray-300 hover:bg-gray-50',
+                    ? 'border-orange-500 bg-[#ea580c] text-white'
+                    : 'border-gray-300 hover:bg-orange-50',
                 ].join(' ')}
               >
                 {n}
@@ -211,7 +211,7 @@ export default function BoardPage() {
           {/* 우측: 새 글 버튼 */}
           <Link
             href="/board/new"
-            className="w-full sm:w-auto px-4 py-2 rounded bg-black text-white hover:bg-gray-800 whitespace-nowrap text-center text-[clamp(12px,3.5vw,14px)]"
+            className="w-full sm:w-auto px-4 py-2 rounded bg-[#ea580c] text-white hover:bg-[#c2410c] whitespace-nowrap text-center text-[clamp(12px,3.5vw,14px)]"
           >
             새 글 작성
           </Link>

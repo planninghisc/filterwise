@@ -157,7 +157,7 @@ export default function NewsAlertPage() {
       {/* 헤더 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">📢 뉴스 브리핑 센터</h1>
+          <h1 className="mb-2 text-2xl font-bold text-[#c2410c]">📢 뉴스 브리핑 센터</h1>
           <p className="text-gray-600">현재 <b>{subCount}명</b>의 구독자가 있습니다.</p>
         </div>
         
@@ -165,7 +165,7 @@ export default function NewsAlertPage() {
         <div className="flex gap-2">
           {/* ✅ 데일리 요약 페이지 이동 버튼 추가 */}
           <Link href="/news/daily-summary">
-            <button className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-semibold border border-blue-200 transition">
+            <button className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-semibold text-[#c2410c] transition hover:bg-orange-100">
               🗞️ 데일리 요약 보기
             </button>
           </Link>
@@ -182,9 +182,9 @@ export default function NewsAlertPage() {
 
       {/* 1. 키워드 관리 섹션 */}
       <section>
-        <h2 className="text-xl font-bold text-gray-800 mb-4 border-l-4 border-blue-500 pl-3">뉴스 키워드 관리</h2>
+        <h2 className="mb-4 border-l-4 border-orange-500 pl-3 text-xl font-bold text-gray-800">뉴스 키워드 관리</h2>
         
-        <div className="bg-blue-50 p-5 rounded-2xl mb-6 border border-blue-100">
+        <div className="mb-6 rounded-2xl border border-orange-100 bg-orange-50 p-5">
           <form onSubmit={addKeyword} className="flex flex-col md:flex-row gap-3">
             <div className="flex-1">
               <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="수집 검색어 (예: 한화투자증권)" className="w-full p-3 border border-gray-300 rounded-xl" />
@@ -192,7 +192,7 @@ export default function NewsAlertPage() {
             <div className="flex-1">
               <input type="text" value={filterInput} onChange={(e) => setFilterInput(e.target.value)} placeholder="알림 조건 (예: 이벤트, 실적)" className="w-full p-3 border border-gray-300 rounded-xl" />
             </div>
-            <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 whitespace-nowrap">등록</button>
+            <button type="submit" className="whitespace-nowrap rounded-xl bg-[#ea580c] px-6 py-3 font-bold text-white hover:bg-[#c2410c]">등록</button>
           </form>
         </div>
 
@@ -207,7 +207,7 @@ export default function NewsAlertPage() {
                   </div>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setEditingId(null)} className="px-3 py-1 bg-gray-100 rounded">취소</button>
-                    <button onClick={saveEdit} className="px-3 py-1 bg-blue-600 text-white rounded">저장</button>
+                    <button onClick={saveEdit} className="rounded bg-[#ea580c] px-3 py-1 text-white hover:bg-[#c2410c]">저장</button>
                   </div>
                 </div>
               ) : (
@@ -220,7 +220,7 @@ export default function NewsAlertPage() {
                      </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => startEditing(item)} className="p-2 text-gray-400 hover:text-blue-500">✏️</button>
+                    <button onClick={() => startEditing(item)} className="p-2 text-gray-400 hover:text-[#ea580c]">✏️</button>
                     <button onClick={() => deleteKeyword(item.id)} className="p-2 text-gray-400 hover:text-red-500">🗑️</button>
                   </div>
                 </div>

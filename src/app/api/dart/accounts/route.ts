@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { ReprtCode, FsDiv, SjDiv } from '@/lib/dart'
+import { normalizeDartSjDiv, type ReprtCode, type FsDiv, type SjDiv } from '@/lib/dart'
 
 type Row = {
   account_id: string | null
@@ -8,14 +8,11 @@ type Row = {
 
 type AccountItem = { account_nm: string; account_id: string | null; key: string }
 
-function normalizeSjDiv(v?: string | null): SjDiv {
-  const s = (v ?? '').toUpperCase()
-  if (s === 'CIS' || s === 'PL' || s === 'IS') return 'CIS'
-  return 'BS'
-}
-
 function sjQueryValues(base: SjDiv): Array<SjDiv | 'IS'> {
-  return base === 'BS' ? ['BS'] : ['CIS', 'IS']
+  if (base === 'BS') return ['BS']
+  if (base === 'CF') return ['CF']
+  if (base === 'SCE') return ['SCE']
+  return ['CIS', 'IS']
 }
 
 function normalizeName(s: string): string {
@@ -32,18 +29,23 @@ export async function GET(req: NextRequest) {
     const year = Number(searchParams.get('year') ?? new Date().getFullYear())
     const reprt = (searchParams.get('reprt') ?? '11011') as ReprtCode
     const fsDiv = (searchParams.get('fs_div') ?? 'OFS') as FsDiv
-    const sjDiv = normalizeSjDiv(searchParams.get('sj_div'))
+    const sjDiv = normalizeDartSjDiv(searchParams.get('sj_div'))
+    const corpCode = (searchParams.get('corp_code') ?? '').trim()
 
     // 명시적으로 바꾸고 싶다면 ?group_by=account_id 전달 가능 (기본 account_id)
     const groupBy = (searchParams.get('group_by') ?? 'account_id').toLowerCase()
 
-    const { data, error } = await (await import('@/lib/supabaseAdmin')).supabaseAdmin
+    let q = (await import('@/lib/supabaseAdmin')).supabaseAdmin
       .from('dart_fnltt')
       .select('account_id, account_nm')
       .eq('bsns_year', year)
       .eq('reprt_code', reprt)
       .eq('fs_div', fsDiv)
       .in('sj_div', sjQueryValues(sjDiv))
+
+    if (corpCode) q = q.eq('corp_code', corpCode)
+
+    const { data, error } = await q
 
     if (error) throw error
 

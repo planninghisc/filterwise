@@ -71,7 +71,7 @@ export default function ProfilePage() {
       <button
         onClick={save}
         disabled={saving}
-        className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800 disabled:opacity-60"
+        className="px-4 py-2 rounded bg-[#ea580c] text-white hover:bg-[#c2410c] disabled:opacity-60"
       >
         {saving ? '저장 중…' : '저장'}
       </button>

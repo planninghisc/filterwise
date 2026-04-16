@@ -229,11 +229,11 @@ export default function NewsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-[var(--fw-text)]">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">News</h1>
-          <p className="text-sm text-gray-500 mt-1">한화투자증권 관련 뉴스 모니터링</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#c2410c]">News</h1>
+          <p className="mt-1 text-sm text-[var(--fw-muted)]">한화투자증권 관련 뉴스 모니터링</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -241,7 +241,7 @@ export default function NewsPage() {
             {[1, 3, 7].map(d => (
               <button
                 key={d}
-                className={`px-3 py-1.5 text-sm ${days === d ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 text-sm ${days === d ? 'bg-[#ea580c] text-white' : 'text-gray-700 hover:bg-orange-50'}`}
                 onClick={() => setDays(d as any)}
                 disabled={!!selectedDate}
               >
@@ -289,7 +289,7 @@ export default function NewsPage() {
               <button
                 key={p}
                 onClick={() => togglePublisher(p)}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${selectedPublishers.includes(p) ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'}`}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${selectedPublishers.includes(p) ? 'border-[#ea580c] bg-[#ea580c] text-white' : 'border-gray-300 bg-white text-gray-700'}`}
               >
                 {p}
               </button>
@@ -313,7 +313,7 @@ export default function NewsPage() {
           </div>
           <div className="flex gap-1">
              {[7, 14, 30].map(d => (
-                 <button key={d} onClick={() => setTrendDays(d as any)} className={`px-2 py-1 text-xs rounded border ${trendDays === d ? 'bg-gray-100 font-bold' : 'bg-white'}`}>{d}일</button>
+                 <button key={d} onClick={() => setTrendDays(d as any)} className={`px-2 py-1 text-xs rounded border ${trendDays === d ? 'bg-orange-50 border-orange-200 font-bold text-[#c2410c]' : 'bg-white'}`}>{d}일</button>
              ))}
           </div>
         </div>
@@ -373,7 +373,7 @@ export default function NewsPage() {
                     {(isManualResearch || isAuto) ? (
                          <button
                             onClick={() => changeCategory(n.id, 'general')}
-                            className="absolute right-0 top-3 opacity-0 group-hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded z-10 font-medium border bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                            className="absolute right-0 top-3 z-10 rounded border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-medium text-[#c2410c] opacity-0 transition-opacity group-hover:opacity-100 hover:bg-orange-100"
                         >
                             <span className="flex items-center gap-1"><ArrowDown className="w-3 h-3" /> 일반으로 변경</span>
                         </button>
@@ -381,7 +381,7 @@ export default function NewsPage() {
                     /* 2. 일반(수동) or 그냥 일반 상태면 -> '리서치로 분류' 버튼 노출 */
                         <button
                             onClick={() => changeCategory(n.id, 'research')}
-                            className="absolute right-0 top-3 opacity-0 group-hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded z-10 font-medium border bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200"
+                            className="absolute right-0 top-3 z-10 rounded border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-medium text-[#c2410c] opacity-0 transition-opacity group-hover:opacity-100 hover:bg-orange-100"
                         >
                             <span className="flex items-center gap-1"><ArrowUp className="w-3 h-3" /> 리서치로 분류</span>
                         </button>
@@ -404,7 +404,7 @@ export default function NewsPage() {
 
                         {/* 🔵 Auto Research 배지 */}
                         {isAuto && (
-                            <span className="flex items-center gap-0.5 bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-bold border border-blue-100">
+                            <span className="flex items-center gap-0.5 rounded border border-orange-100 bg-orange-50 px-1.5 py-0.5 font-bold text-[#ea580c]">
                                 <FileText className="w-3 h-3" /> Auto
                             </span>
                         )}
@@ -429,7 +429,7 @@ export default function NewsPage() {
       )}
       
       <style jsx>{`
-        .btn-white { @apply inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-sm hover:bg-gray-50; }
+        .btn-white { @apply inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm transition-colors hover:border-orange-200 hover:bg-orange-50; }
       `}</style>
     </div>
   )

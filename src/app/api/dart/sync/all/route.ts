@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const years: number[] = Array.isArray(b.years) && b.years.length > 0 ? b.years : [new Date().getFullYear()]
     const reprts: ReprtCode[] = Array.isArray(b.reprt_codes) && b.reprt_codes.length > 0 ? b.reprt_codes : ['11011']
     const fsDivs: FsDiv[] = Array.isArray(b.fs_divs) && b.fs_divs.length > 0 ? b.fs_divs : ['OFS']
-    const sjDivs: SjDiv[] = Array.isArray(b.sj_divs) && b.sj_divs.length > 0 ? b.sj_divs : ['BS', 'CIS']
+    const sjDivs: SjDiv[] = Array.isArray(b.sj_divs) && b.sj_divs.length > 0 ? b.sj_divs : ['BS', 'CIS', 'CF', 'SCE']
 
     // 실제 동기화 호출 대신 폴링/큐잉 결과만 반환 (타입 안전)
     const results: SyncResult[] = []
