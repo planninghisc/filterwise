@@ -52,9 +52,35 @@ async function getStockInfo() {
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET_KEY}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const expected = (process.env.CRON_SECRET_KEY ?? '').trim()
+    const authHeader = (request.headers.get('authorization') ?? '').trim()
+    const xCronSecret = (request.headers.get('x-cron-secret') ?? '').trim()
+
+    // cron providers differ in header behavior:
+    // - Authorization: Bearer <secret>
+    // - Authorization: <secret>
+    // - X-Cron-Secret: <secret>
+    const candidates = [
+      authHeader,
+      authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : '',
+      xCronSecret,
+    ].filter(Boolean)
+
+    const authorized = expected.length > 0 && candidates.some((v) => v === expected)
+    if (!authorized) {
+      console.warn('[daily-briefing] unauthorized', {
+        hasExpected: expected.length > 0,
+        authHeaderPresent: authHeader.length > 0,
+        authLooksBearer: authHeader.toLowerCase().startsWith('bearer '),
+        xCronSecretPresent: xCronSecret.length > 0,
+      })
+      return NextResponse.json(
+        {
+          error: 'Unauthorized',
+          hint: 'Use Authorization: Bearer <CRON_SECRET_KEY> or X-Cron-Secret: <CRON_SECRET_KEY>',
+        },
+        { status: 401 },
+      )
     }
 
     const { data: subsData } = await supabase
