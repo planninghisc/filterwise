@@ -1,6 +1,7 @@
 // src/app/api/cron/daily-briefing/route.ts
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isValidCronSecret } from '@/lib/requireCronOrSession'
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 import iconv from 'iconv-lite'
@@ -52,28 +53,7 @@ async function getStockInfo() {
 
 export async function GET(request: Request) {
   try {
-    const expected = (process.env.CRON_SECRET_KEY ?? '').trim()
-    const authHeader = (request.headers.get('authorization') ?? '').trim()
-    const xCronSecret = (request.headers.get('x-cron-secret') ?? '').trim()
-
-    // cron providers differ in header behavior:
-    // - Authorization: Bearer <secret>
-    // - Authorization: <secret>
-    // - X-Cron-Secret: <secret>
-    const candidates = [
-      authHeader,
-      authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : '',
-      xCronSecret,
-    ].filter(Boolean)
-
-    const authorized = expected.length > 0 && candidates.some((v) => v === expected)
-    if (!authorized) {
-      console.warn('[daily-briefing] unauthorized', {
-        hasExpected: expected.length > 0,
-        authHeaderPresent: authHeader.length > 0,
-        authLooksBearer: authHeader.toLowerCase().startsWith('bearer '),
-        xCronSecretPresent: xCronSecret.length > 0,
-      })
+    if (!isValidCronSecret(request)) {
       return NextResponse.json(
         {
           error: 'Unauthorized',

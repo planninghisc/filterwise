@@ -1,5 +1,6 @@
 // src/app/api/envcheck/route.ts
 import { NextResponse } from 'next/server'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 
 export const dynamic = 'force-dynamic' // 캐시 막기
 
@@ -12,7 +13,10 @@ function mask(v?: string | null) {
   return `${v.slice(0, 4)}...${v.slice(-4)}`
 }
 
-export async function GET(_req: Request) {
+export async function GET(req: Request) {
+  const denied = await requireCronOrSession(req)
+  if (denied) return denied
+
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? null
   const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? null
   const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ?? null

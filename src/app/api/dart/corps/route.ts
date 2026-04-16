@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 
 const TIERS = new Set(['large', 'mid'])
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireCronOrSession(req)
+  if (denied) return denied
+
   const { data, error } = await supabaseAdmin
     .from('dart_corp')
     .select('corp_code, corp_name, tier, is_peer')
@@ -14,6 +18,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const body = (await req.json().catch(() => ({}))) as {
       corp_code?: unknown
       corp_name?: unknown

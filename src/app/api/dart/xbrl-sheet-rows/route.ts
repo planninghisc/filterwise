@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeDartSjDiv, type ReprtCode } from '@/lib/dart'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 import AdmZip from 'adm-zip'
 import iconv from 'iconv-lite'
 
@@ -394,6 +395,9 @@ async function persistHeadcount(args: {
 
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const corp_code = (searchParams.get('corp_code') ?? '').trim()
     if (!corp_code) {

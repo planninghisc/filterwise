@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const token = process.env.TELEGRAM_BOT_TOKEN
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
 

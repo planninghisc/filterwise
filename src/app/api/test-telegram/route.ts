@@ -1,6 +1,7 @@
 // src/app/api/test-telegram/route.ts
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 import iconv from 'iconv-lite'
@@ -50,6 +51,9 @@ async function getStockInfo() {
 
 export async function GET(request: Request) {
   try {
+    const denied = await requireCronOrSession(request)
+    if (denied) return denied
+
     const { searchParams } = new URL(request.url);
     const targetChatId = searchParams.get('chat_id');
 

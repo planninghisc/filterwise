@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 
 const TIERS = new Set(['large', 'mid'])
 
@@ -7,6 +8,9 @@ type PatchBody = { corp_name?: unknown; tier?: unknown; is_peer?: unknown }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ corp_code: string }> }) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const { corp_code: raw } = await ctx.params
     const corp_code = decodeURIComponent(raw ?? '').trim()
     if (!corp_code) {
@@ -71,8 +75,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ corp_code
   }
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ corp_code: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ corp_code: string }> }) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const { corp_code: raw } = await ctx.params
     const corp_code = decodeURIComponent(raw ?? '').trim()
     if (!corp_code) {

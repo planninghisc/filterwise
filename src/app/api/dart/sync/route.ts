@@ -1,6 +1,7 @@
 // src/app/api/dart/sync/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 import { normalizeDartSjDiv, type ReprtCode, type FsDiv, type SjDiv } from '@/lib/dart'
 
 type PostBody = {
@@ -181,6 +182,9 @@ async function syncOne(args: {
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const raw = (await req.json().catch(() => ({}))) as PostBody
 
     const fromArray = toStringArray(raw.corp_codes)

@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import type { ReprtCode, FsDiv, SjDiv } from '@/lib/dart'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 
 type Payload = {
   corp_codes?: string[]          // 지정이 없으면 서버 쪽에서 전체 대상 선정
@@ -16,6 +17,9 @@ type SyncResult = { corp_code: string; year: number; reprt: ReprtCode; fs_div: F
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const body = (await req.json().catch(() => ({}))) as unknown
     const b = body as Payload
 

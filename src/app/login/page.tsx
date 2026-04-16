@@ -54,8 +54,16 @@ export default function LoginPage() {
         return
       }
 
-      // 3) 서버 쿠키 적용 확인 페이지로 이동 (hydration 안전)
-      window.location.replace('/login/success')
+      // 3) 미들웨어가 넘긴 next(내부 경로만) 또는 세션 확인 페이지
+      const nextRaw = new URL(window.location.href).searchParams.get('next')
+      const safeNext =
+        nextRaw &&
+        nextRaw.startsWith('/') &&
+        !nextRaw.startsWith('//') &&
+        !nextRaw.startsWith('/login')
+          ? nextRaw
+          : '/login/success'
+      window.location.replace(safeNext)
     } catch (err) {
       console.error('[login error]', err)
       setErrorMsg('알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.')

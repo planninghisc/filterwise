@@ -1,6 +1,7 @@
 // src/app/api/export/[dataset]/route.ts
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 import { DATASETS, type DatasetKey, pickTable } from '@/lib/datasets'
 
 export const dynamic = 'force-dynamic'
@@ -55,6 +56,9 @@ function rowsToCsv(rows: Row[]): string {
 // URL에서 dataset 추출 (context 인자 사용 안 함)
 export async function GET(req: Request) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const url = new URL(req.url)
     const match = url.pathname.match(/\/api\/export\/([^/]+)\/?$/)
     const datasetParam = match?.[1]

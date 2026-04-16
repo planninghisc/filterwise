@@ -1,6 +1,7 @@
 // src/app/api/telegram/test-broadcast/route.ts
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,9 @@ const supabase = createClient(
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireCronOrSession(request)
+    if (denied) return denied
+
     // 1. 활성 구독자 목록 가져오기
     const { data: subscribers } = await supabase
       .from('telegram_subscribers')

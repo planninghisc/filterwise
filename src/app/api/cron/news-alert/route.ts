@@ -1,8 +1,9 @@
 // src/app/api/cron/news-alert/route.ts
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { fetchNaverNews } from '@/lib/news/ingestNaver' 
+import { fetchNaverNews } from '@/lib/news/ingestNaver'
 import crypto from 'crypto'
+import { isValidCronSecret } from '@/lib/requireCronOrSession'
 
 export const maxDuration = 60 
 export const dynamic = 'force-dynamic'
@@ -18,9 +19,11 @@ function generateTitleHash(title: string) {
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET_KEY}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!isValidCronSecret(request)) {
+      return NextResponse.json(
+        { error: 'Unauthorized', hint: 'Authorization: Bearer <CRON_SECRET_KEY> or X-Cron-Secret' },
+        { status: 401 },
+      )
     }
 
     const keywords = ['한화투자증권', '한화증권'] // 혹은 DB에서 가져오기

@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 import { fetchNaverNews } from '@/lib/news/ingestNaver' // [변경] 새 함수 import
 import crypto from 'crypto'
 
@@ -11,8 +12,11 @@ function generateTitleHash(title: string) {
   return crypto.createHash('md5').update(title).digest('hex');
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const denied = await requireCronOrSession(req)
+    if (denied) return denied
+
     const keywords = ['한화투자증권', '한화증권']
     const debugLogs: any[] = []
 

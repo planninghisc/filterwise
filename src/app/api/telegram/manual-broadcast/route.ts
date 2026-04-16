@@ -2,6 +2,7 @@
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireCronOrSession } from '@/lib/requireCronOrSession'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,9 @@ const supabase = createClient(
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireCronOrSession(request)
+    if (denied) return denied
+
     // 1. 요청 본문에서 메시지 꺼내기
     const body = await request.json()
     const { message } = body
