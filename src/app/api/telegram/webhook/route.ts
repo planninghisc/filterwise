@@ -32,6 +32,12 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const update = await request.json()
+    console.log('[telegram webhook] incoming update:', {
+      update_id: update?.update_id,
+      has_message: Boolean(update?.message),
+      text: update?.message?.text ?? null,
+      chat_id: update?.message?.chat?.id ?? null,
+    })
     if (!update.message || !update.message.text) return NextResponse.json({ ok: true })
 
     const { chat, text, from } = update.message
