@@ -8,10 +8,10 @@ function getClient(): SupabaseClient {
   if (_client) return _client
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const missing: string[] = []
-  if (!url) missing.push('NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL)')
-  if (!key) missing.push('SUPABASE_SERVICE_ROLE_KEY')
-  if (missing.length) {
+  if (!url || !key) {
+    const missing: string[] = []
+    if (!url) missing.push('NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL)')
+    if (!key) missing.push('SUPABASE_SERVICE_ROLE_KEY')
     throw new Error(`Missing SUPABASE env vars: ${missing.join(', ')}`)
   }
   _client = createClient(url, key, { auth: { persistSession: false } })
