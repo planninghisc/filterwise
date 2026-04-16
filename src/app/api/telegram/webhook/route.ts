@@ -1,11 +1,6 @@
 // src/app/api/telegram/webhook/route.ts
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`
 
@@ -17,6 +12,23 @@ async function sendMessage(chatId: string, text: string) {
   })
 }
 
+function normalizeCommand(text: string): '/start' | '/stop' | null {
+  const raw = text.trim().split(/\s+/)[0] ?? ''
+  const cmd = raw.toLowerCase()
+  if (cmd === '/start' || cmd.startsWith('/start@')) return '/start'
+  if (cmd === '/stop' || cmd.startsWith('/stop@')) return '/stop'
+  return null
+}
+
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    has_bot_token: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+    has_supabase_url: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    has_service_role: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+  })
+}
+
 export async function POST(request: Request) {
   try {
     const update = await request.json()
@@ -24,10 +36,11 @@ export async function POST(request: Request) {
 
     const { chat, text, from } = update.message
     const chatId = chat.id.toString()
+    const command = normalizeCommand(String(text ?? ''))
 
     // 1. /start 명령어가 오면 구독자로 등록
-    if (text === '/start') {
-      const { error } = await supabase
+    if (command === '/start') {
+      const { error } = await supabaseAdmin
         .from('telegram_subscribers')
         .upsert({
           chat_id: chatId,
@@ -36,7 +49,10 @@ export async function POST(request: Request) {
           is_active: true
         })
 
-      if (!error) {
+      if (error) {
+        console.error('[telegram webhook] subscribe upsert failed:', error)
+        await sendMessage(chatId, '⚠️ 구독 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.')
+      } else {
         await sendMessage(chatId, `
 🎉 <b>환영합니다! 뉴스 알림 구독이 완료되었습니다.</b>
 
@@ -58,13 +74,18 @@ export async function POST(request: Request) {
       }
     } 
     // 2. /stop 명령어가 오면 구독 정지
-    else if (text === '/stop') {
-      await supabase
+    else if (command === '/stop') {
+      const { error } = await supabaseAdmin
         .from('telegram_subscribers')
         .update({ is_active: false })
         .eq('chat_id', chatId)
-      
-      await sendMessage(chatId, '🔕 <b>알림이 중지되었습니다.</b>\n다시 받으려면 <code>/start</code>를 입력하세요.')
+
+      if (error) {
+        console.error('[telegram webhook] unsubscribe update failed:', error)
+        await sendMessage(chatId, '⚠️ 알림 중지 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.')
+      } else {
+        await sendMessage(chatId, '🔕 <b>알림이 중지되었습니다.</b>\n다시 받으려면 <code>/start</code>를 입력하세요.')
+      }
     }
 
     return NextResponse.json({ ok: true })
