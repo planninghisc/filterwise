@@ -25,13 +25,14 @@ import {
 } from 'lucide-react'
 
 type NavItem = { name: string; href: string; icon: React.ReactNode }
+type Crumb = { label: string; href?: string; active?: boolean }
 
 const navSections: Array<Array<NavItem>> = [
   [
     { name: 'Home', href: '/', icon: <Home className="w-4 h-4" /> },
   ],
   [
-    { name: 'Data', href: '/data', icon: <BarChart3 className="w-4 h-4" /> },
+    { name: 'Data Hub', href: '/data', icon: <BarChart3 className="w-4 h-4" /> },
     { name: 'News', href: '/news', icon: <Newspaper className="w-4 h-4" /> },
   ],
   [
@@ -141,6 +142,58 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
 
   const isActive = (href: string) =>
     pathname === href || (href !== '/' && pathname.startsWith(href + '/'))
+
+  const breadcrumbs = useMemo<Crumb[]>(() => {
+    const exact: Record<string, Crumb[]> = {
+      '/': [{ label: 'Home', href: '/', active: true }],
+      '/data': [{ label: 'Data Hub', href: '/data', active: true }],
+      '/news': [{ label: 'News', href: '/news', active: true }],
+      '/news/alerts': [
+        { label: 'News', href: '/news' },
+        { label: 'News Alert', href: '/news/alerts', active: true },
+      ],
+      '/news/daily-summary': [
+        { label: 'News', href: '/news' },
+        { label: 'Daily Summary', href: '/news/daily-summary', active: true },
+      ],
+      '/dart-analysis': [{ label: 'DART Analysis', href: '/dart-analysis', active: true }],
+      '/dart-analysis/corp-account': [
+        { label: 'DART Analysis', href: '/dart-analysis' },
+        { label: 'CORP Account', href: '/dart-analysis/corp-account', active: true },
+      ],
+      '/dart-financial-raw': [
+        { label: 'DART Analysis', href: '/dart-analysis' },
+        { label: 'DART BS/PL RAW', href: '/dart-financial-raw', active: true },
+      ],
+      '/dart-financial-raw/corps': [
+        { label: 'DART Analysis', href: '/dart-analysis' },
+        { label: 'CORP registration', href: '/dart-financial-raw/corps', active: true },
+      ],
+      '/dashboard': [{ label: 'Market Analysis', href: '/dashboard', active: true }],
+      '/weekly-ir': [{ label: 'Weekly IR', href: '/weekly-ir', active: true }],
+      '/board': [{ label: 'Board', href: '/board', active: true }],
+      '/board/new': [
+        { label: 'Board', href: '/board' },
+        { label: 'New', href: '/board/new', active: true },
+      ],
+      '/etc': [{ label: 'Etc', href: '/etc', active: true }],
+      '/account': [{ label: 'Account', href: '/account', active: true }],
+      '/profile': [{ label: 'Profile', href: '/profile', active: true }],
+      '/protected': [{ label: 'Protected', href: '/protected', active: true }],
+      '/schedule': [{ label: 'Schedule', href: '/schedule', active: true }],
+    }
+    if (exact[pathname]) return exact[pathname]
+    if (pathname.startsWith('/data/')) {
+      const leaf = pathname.split('/').filter(Boolean).slice(1)
+      const label = leaf.map((s) => s.replace(/-/g, ' ')).join(' / ')
+      return [{ label: 'Data Hub', href: '/data' }, { label, active: true }]
+    }
+    if (pathname.startsWith('/board/')) {
+      return [{ label: 'Board', href: '/board' }, { label: 'Detail', active: true }]
+    }
+    if (pathname.startsWith('/api/')) return [{ label: 'API', active: true }]
+    return []
+  }, [pathname])
 
   // 로그인 페이지만 중앙 정렬
   if (isLoginPage) {
@@ -304,19 +357,6 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
                                 <span className="font-medium">CORP registration</span>
                               </Link>
                               <Link
-                                href="/dart-analysis/corp-account"
-                                aria-current={pathname.startsWith('/dart-analysis/corp-account') ? 'page' : undefined}
-                                className={[
-                                  'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
-                                  pathname.startsWith('/dart-analysis/corp-account')
-                                    ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
-                                    : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
-                                ].join(' ')}
-                              >
-                                <SlidersHorizontal className="w-4 h-4" />
-                                <span className="font-medium">CORP Account</span>
-                              </Link>
-                              <Link
                                 href="/dart-financial-raw"
                                 aria-current={pathname === '/dart-financial-raw' ? 'page' : undefined}
                                 className={[
@@ -328,6 +368,19 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
                               >
                                 <Table2 className="w-4 h-4" />
                                 <span className="font-medium">DART BS/PL RAW</span>
+                              </Link>
+                              <Link
+                                href="/dart-analysis/corp-account"
+                                aria-current={pathname.startsWith('/dart-analysis/corp-account') ? 'page' : undefined}
+                                className={[
+                                  'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                  pathname.startsWith('/dart-analysis/corp-account')
+                                    ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                    : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                                ].join(' ')}
+                              >
+                                <SlidersHorizontal className="w-4 h-4" />
+                                <span className="font-medium">CORP Account</span>
                               </Link>
                             </>
                           )}
@@ -348,7 +401,28 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
 
         {/* 본문 */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto w-full max-w-7xl">{children}</div>
+          <div className="mx-auto w-full max-w-7xl">
+            {breadcrumbs.length > 0 ? (
+              <div className="mb-4 text-xs text-zinc-500">
+                {breadcrumbs.map((c, i) => (
+                  <span key={`${c.label}-${i}`}>
+                    {i > 0 ? <span className="mx-1 text-zinc-400">/</span> : null}
+                    {c.href ? (
+                      <Link
+                        href={c.href}
+                        className={c.active ? 'text-[#c2410c] underline' : 'text-zinc-500 hover:text-[#c2410c] hover:underline'}
+                      >
+                        {c.label}
+                      </Link>
+                    ) : (
+                      <span className={c.active ? 'text-[#c2410c] underline' : 'text-zinc-500'}>{c.label}</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {children}
+          </div>
         </main>
       </div>
 
@@ -459,20 +533,6 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
                               <span>CORP registration</span>
                             </Link>
                             <Link
-                              href="/dart-analysis/corp-account"
-                              onClick={() => setMenuOpen(false)}
-                              aria-current={pathname.startsWith('/dart-analysis/corp-account') ? 'page' : undefined}
-                              className={[
-                                'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
-                                pathname.startsWith('/dart-analysis/corp-account')
-                                  ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
-                                  : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
-                              ].join(' ')}
-                            >
-                              <SlidersHorizontal className="w-4 h-4" />
-                              <span>CORP Account</span>
-                            </Link>
-                            <Link
                               href="/dart-financial-raw"
                               onClick={() => setMenuOpen(false)}
                               aria-current={pathname === '/dart-financial-raw' ? 'page' : undefined}
@@ -485,6 +545,20 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
                             >
                               <Table2 className="w-4 h-4" />
                               <span>DART BS/PL RAW</span>
+                            </Link>
+                            <Link
+                              href="/dart-analysis/corp-account"
+                              onClick={() => setMenuOpen(false)}
+                              aria-current={pathname.startsWith('/dart-analysis/corp-account') ? 'page' : undefined}
+                              className={[
+                                'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                pathname.startsWith('/dart-analysis/corp-account')
+                                  ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                  : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                              ].join(' ')}
+                            >
+                              <SlidersHorizontal className="w-4 h-4" />
+                              <span>CORP Account</span>
                             </Link>
                           </>
                         )}

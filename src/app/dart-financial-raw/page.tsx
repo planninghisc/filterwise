@@ -311,6 +311,10 @@ export default function DartFinancialRawPage() {
           <p className="text-[13px] text-zinc-600 mt-2 leading-relaxed">
             데이터는 OpenDART 재무제표 API를 조회해 표시하며, 필요하면 임직원(<code className="text-[11px] bg-zinc-100 px-1 rounded">empSttus</code>)을 함께 보여줍니다.
           </p>
+          <p className="mt-2 text-xs text-zinc-500">
+            등록 프로세스: <strong>1) CORP registration</strong> 완료 후 이 화면에서 재무 원장행을 적재하고, 다음 단계로{' '}
+            <strong>CORP Account</strong>에서 회사별 계산식을 확인해 주세요.
+          </p>
         </div>
       </div>
 

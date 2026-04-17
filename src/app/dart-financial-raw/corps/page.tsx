@@ -192,6 +192,21 @@ export default function DartCorpSettingsPage() {
             <strong className="font-medium text-zinc-700">대형·중소형</strong>은 규모 구분이며,{' '}
             <strong className="font-medium text-zinc-700">피어</strong>는 중소형사 가운데 비교 그룹에 넣을 회사에만 표시합니다(중소형과 동시에 설정 가능).
           </p>
+          <p className="mt-2 text-xs text-zinc-500">
+            등록 프로세스: <strong>1) CORP registration</strong>에서 회사 등록 → <strong>2) DART BS/PL RAW</strong>에서 재무원장 적재 →
+            <strong> 3) CORP Account</strong>에서 계산식 점검/저장 → <strong>4) DART Analysis</strong> 실행
+          </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            회사코드 찾기:{' '}
+            <a
+              href="https://dart.fss.or.kr/dsab007/main.do"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#c2410c] hover:underline"
+            >
+              DART 공시통합검색
+            </a>
+          </p>
         </div>
       </div>
 

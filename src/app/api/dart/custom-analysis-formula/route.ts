@@ -27,10 +27,18 @@ function normalizeTerms(v: unknown): FormulaTerm[] {
   for (const x of v) {
     if (!x || typeof x !== 'object') continue
     const o = x as { account_id?: unknown; sign?: unknown }
-    const account_id = String(o.account_id ?? '').trim()
+    const raw = String(o.account_id ?? '').trim()
+    if (!raw) continue
+    let account_id = raw
+    let sign: 1 | -1 = Number(o.sign ?? 1) < 0 ? -1 : 1
+    if (account_id.startsWith('-')) {
+      sign = -1
+      account_id = account_id.slice(1).trim()
+    } else if (account_id.startsWith('+')) {
+      account_id = account_id.slice(1).trim()
+    }
     if (!account_id) continue
-    const sign = Number(o.sign ?? 1)
-    out.push({ account_id, sign: sign < 0 ? -1 : 1 })
+    out.push({ account_id, sign })
   }
   return out
 }
@@ -50,7 +58,12 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await q
     if (error) throw error
-    return NextResponse.json({ ok: true, rows: data ?? [] })
+    const rows = (data ?? []).map((row) => {
+      const normalized: Record<string, unknown> = { ...row }
+      for (const k of KEYS) normalized[k] = normalizeTerms((row as Record<string, unknown>)[k])
+      return normalized
+    })
+    return NextResponse.json({ ok: true, rows })
   } catch (e: unknown) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : 'Unknown error' }, { status: 500 })
   }

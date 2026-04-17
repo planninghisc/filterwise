@@ -33,6 +33,8 @@ type Row = {
   corp_name: string
   tier: 'large' | 'mid'
   is_peer: boolean
+  /** API: 해당 회사·연도·보고서·fs_div에 매칭된 dart_fnltt 행 수 */
+  fnltt_row_count?: number
   headcount: number | null
   headcount_note?: string
   th: Record<MetricKey, number | null>
@@ -305,6 +307,10 @@ export default function DartAnalysisPage() {
 
   return (
     <div className="space-y-5">
+      <div className="text-xs text-zinc-500">
+        분석 프로세스: <strong>1) CORP registration</strong>에서 회사 등록 → <strong>2) DART BS/PL RAW</strong>에서 원장 적재 →
+        <strong> 3) CORP Account</strong>에서 조합식 점검 → <strong>4) DART Analysis</strong> 실행
+      </div>
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div>
@@ -353,7 +359,9 @@ export default function DartAnalysisPage() {
         </div>
         <p className="mt-3 text-xs text-zinc-500">
           본 화면은 XBRL 문서를 직접 읽지 않고 <code className="rounded bg-zinc-100 px-1">dart_fnltt</code> 저장 데이터만 사용합니다. 데이터가 없으면 DART BS/PL RAW에서 먼저 적재해 주세요. 회사별 QNAME 조합식은 좌측 메뉴{' '}
-          <strong className="text-zinc-700">CORP Account</strong>에서 설정합니다.
+          <strong className="text-zinc-700">CORP Account</strong>에서 설정합니다. 임직원 수는 같은 연도·보고서 기준{' '}
+          <code className="rounded bg-zinc-100 px-1">dart_headcount</code>가 있으면 그 값을 쓰고, 없을 때만 OpenDART{' '}
+          <code className="rounded bg-zinc-100 px-1">empSttus</code>로 보완합니다.
         </p>
       </div>
 
@@ -553,7 +561,20 @@ export default function DartAnalysisPage() {
                 {sortedRows.map((r) => (
                   <tr key={r.corp_code} className="border-t border-zinc-100">
                     <td className="px-2 py-1.5">
-                      {r.corp_name} <span className="text-xs text-zinc-400">({formatDartCorpLabel(r.tier, r.is_peer)})</span>
+                      <div className="flex flex-col gap-0.5">
+                        <span>
+                          {r.corp_name}{' '}
+                          <span className="text-xs text-zinc-400">({formatDartCorpLabel(r.tier, r.is_peer)})</span>
+                        </span>
+                        {r.fnltt_row_count === 0 ? (
+                          <span
+                            className="text-xs text-amber-800"
+                            title="DART Analysis는 위에서 고른 연도·보고서·별도/연결(OFS/CFS)과 일치하는 dart_fnltt 행만 집계합니다. 테이블에 다른 연도 행이 있어도 이 조건에 없으면 여기서는 비어 보입니다."
+                          >
+                            이 조건의 dart_fnltt 0건 — 연도·보고서·OFS/CFS를 맞추거나 해당 조합으로 RAW 적재
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-2 py-1.5 text-right">{r.headcount == null ? '—' : r.headcount.toLocaleString()}</td>
                     {METRICS.map((k) => {

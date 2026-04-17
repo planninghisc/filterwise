@@ -24,52 +24,6 @@ const DEFAULT_FORMULA: Formula = {
   equity: ['ifrs-full_Equity'],
 }
 
-const FORMULA_BY_CORP: Record<string, Formula> = {
-  '한화투자증권': DEFAULT_FORMULA,
-  '신한투자증권': DEFAULT_FORMULA,
-  '한국투자증권': DEFAULT_FORMULA,
-  'KB증권': DEFAULT_FORMULA,
-  'NH투자증권': DEFAULT_FORMULA,
-  '교보증권': DEFAULT_FORMULA,
-  '신영증권': DEFAULT_FORMULA,
-  '유안타증권': DEFAULT_FORMULA,
-  '현대차증권': DEFAULT_FORMULA,
-  'IBK투자증권': DEFAULT_FORMULA,
-  'iM증권': DEFAULT_FORMULA,
-  'iM투자증권': DEFAULT_FORMULA,
-  '삼성증권': {
-    ...DEFAULT_FORMULA,
-    net_operating_revenue: [
-      'ifrs-full_ProfitLossFromOperatingActivities',
-      'ifrs-full_SellingGeneralAndAdministrativeExpense',
-      'dart_PersonalExpense',
-    ],
-    sga_including_personnel: ['ifrs-full_SellingGeneralAndAdministrativeExpense', 'dart_PersonalExpense'],
-  },
-  '메리츠증권': {
-    ...DEFAULT_FORMULA,
-    net_operating_revenue: [
-      'ifrs-full_ProfitLossFromOperatingActivities',
-      'dart_TotalSellingGeneralAdministrativeExpenses',
-    ],
-    sga_including_personnel: ['dart_TotalSellingGeneralAdministrativeExpenses'],
-  },
-  '대신증권': {
-    ...DEFAULT_FORMULA,
-    net_operating_revenue: [
-      'dart_PersonalExpense',
-      'ifrs-full_DepreciationAndAmortisationExpense',
-      'ifrs-full_DepreciationAndAmortisationExpense',
-      'ifrs-full_ProfitLossFromOperatingActivities',
-    ],
-    sga_including_personnel: [
-      'dart_PersonalExpense',
-      'ifrs-full_DepreciationAndAmortisationExpense',
-      'ifrs-full_DepreciationAndAmortisationExpense',
-    ],
-  },
-}
-
 type FnlttRow = {
   corp_code: string
   sj_div: string
@@ -79,10 +33,47 @@ type FnlttRow = {
   frmtrm_amount: number | null
 }
 
+async function fetchAllFnlttRows(args: {
+  year: number
+  reprt: ReprtCode
+  fsDiv: FsDiv
+  corpCodes: string[]
+}): Promise<FnlttRow[]> {
+  const out: FnlttRow[] = []
+  const pageSize = 1000
+  let from = 0
+
+  while (true) {
+    const to = from + pageSize - 1
+    const { data, error } = await supabaseAdmin
+      .from('dart_fnltt')
+      .select('corp_code, sj_div, sheet_code, account_id, thstrm_amount, frmtrm_amount')
+      .eq('bsns_year', args.year)
+      .eq('reprt_code', args.reprt)
+      .eq('fs_div', args.fsDiv)
+      .in('sj_div', ['BS', 'CIS', 'IS', 'PL'])
+      .in('corp_code', args.corpCodes)
+      .range(from, to)
+
+    if (error) throw error
+    const rows = (data ?? []) as FnlttRow[]
+    out.push(...rows)
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+
+  return out
+}
+
 const SHEETS = {
   cis: { OFS: 'DS320005', CFS: 'DS320000' },
   bs: { OFS: 'DS220005', CFS: 'DS220000' },
 } as const
+
+const ACCOUNT_ID_ALIASES: Record<string, string[]> = {
+  // 메리츠증권 등에서 판관비를 IF-RS 표준 대신 DART 확장 QNAME으로 제공
+  'ifrs-full_SellingGeneralAndAdministrativeExpense': ['dart_TotalSellingGeneralAdministrativeExpenses'],
+}
 
 function safeDiv(num: number | null, den: number | null): number | null {
   if (num == null || den == null || den === 0) return null
@@ -111,50 +102,6 @@ function toSignedFormula(f: Formula): SignedFormula {
   }
 }
 
-function defaultSignedFormulaForName(corpName: string): SignedFormula {
-  const base = FORMULA_BY_CORP[corpName] ?? DEFAULT_FORMULA
-  const signed = toSignedFormula(base)
-  if (corpName === '한국투자증권') {
-    signed.sga_including_personnel = [{ account_id: 'ifrs-full_SellingGeneralAndAdministrativeExpense', sign: -1 }]
-    signed.net_operating_revenue = [
-      { account_id: 'ifrs-full_ProfitLossFromOperatingActivities', sign: 1 },
-      { account_id: 'ifrs-full_SellingGeneralAndAdministrativeExpense', sign: -1 },
-    ]
-  }
-  return signed
-}
-
-function normalizeFormulaFromDb(
-  row: Partial<Record<MetricKey, unknown>> | null | undefined,
-  corpName: string,
-): SignedFormula {
-  const fallback = defaultSignedFormulaForName(corpName)
-  if (!row) return fallback
-
-  const toTerms = (v: unknown, fb: FormulaTerm[]): FormulaTerm[] => {
-    if (!Array.isArray(v)) return fb
-    const out: FormulaTerm[] = []
-    for (const it of v) {
-      if (!it || typeof it !== 'object') continue
-      const o = it as { account_id?: unknown; sign?: unknown }
-      const account_id = String(o.account_id ?? '').trim()
-      if (!account_id) continue
-      const sign = Number(o.sign ?? 1) < 0 ? -1 : 1
-      out.push({ account_id, sign })
-    }
-    return out.length > 0 ? out : fb
-  }
-
-  return {
-    net_operating_revenue: toTerms(row.net_operating_revenue, fallback.net_operating_revenue),
-    sga_including_personnel: toTerms(row.sga_including_personnel, fallback.sga_including_personnel),
-    operating_income: toTerms(row.operating_income, fallback.operating_income),
-    profit_before_tax: toTerms(row.profit_before_tax, fallback.profit_before_tax),
-    net_income: toTerms(row.net_income, fallback.net_income),
-    equity: toTerms(row.equity, fallback.equity),
-  }
-}
-
 function sumMetric(
   rows: FnlttRow[],
   metric: MetricKey,
@@ -166,13 +113,14 @@ function sumMetric(
   const wantedSheet = sheetForMetric(metric, fsDiv)
   const sourceRows = rows.filter((r) => {
     if (metric === 'equity') return r.sj_div === 'BS'
-    return r.sj_div === 'CIS' || r.sj_div === 'IS'
+    return r.sj_div === 'CIS' || r.sj_div === 'IS' || r.sj_div === 'PL'
   })
   let hasAny = false
   let total = 0
 
   for (const term of terms) {
-    const candidates = sourceRows.filter((r) => r.account_id === term.account_id)
+    const idsToMatch = [term.account_id, ...(ACCOUNT_ID_ALIASES[term.account_id] ?? [])]
+    const candidates = sourceRows.filter((r) => idsToMatch.includes(String(r.account_id ?? '')))
     if (candidates.length === 0) continue
 
     const picked =
@@ -208,43 +156,56 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'corp_codes가 필요합니다.' }, { status: 400 })
     }
 
-    const [fnRes, corpRes, headRes, formulaRes] = await Promise.all([
+    const [rawRows, corpRes, hcRes] = await Promise.all([
+      fetchAllFnlttRows({ year, reprt, fsDiv, corpCodes }),
+      supabaseAdmin.from('dart_corp').select('corp_code, corp_name, tier, is_peer').in('corp_code', corpCodes),
       supabaseAdmin
-        .from('dart_fnltt')
-        .select('corp_code, sj_div, sheet_code, account_id, thstrm_amount, frmtrm_amount')
+        .from('dart_headcount')
+        .select('corp_code, headcount, headcount_source')
         .eq('bsns_year', year)
         .eq('reprt_code', reprt)
-        .eq('fs_div', fsDiv)
-        .in('sj_div', ['BS', 'CIS'])
-        .in('corp_code', corpCodes),
-      supabaseAdmin.from('dart_corp').select('corp_code, corp_name, tier, is_peer').in('corp_code', corpCodes),
-      Promise.all(
-        corpCodes.map(async (corp_code) => {
-          try {
-            const r = await fetchDartEmployeeHeadcount(corp_code, year, reprt)
-            return { corp_code, headcount: r.count, note: r.note }
-          } catch (e: unknown) {
-            return {
-              corp_code,
-              headcount: null,
-              note: e instanceof Error ? e.message : 'error',
-            }
-          }
-        }),
-      ),
-      supabaseAdmin
-        .from('dart_analysis_formula')
-        .select(
-          'corp_code, net_operating_revenue, sga_including_personnel, operating_income, profit_before_tax, net_income, equity',
-        )
         .in('corp_code', corpCodes),
     ])
 
-    if (fnRes.error) throw fnRes.error
     if (corpRes.error) throw corpRes.error
-    if (formulaRes.error) throw formulaRes.error
+    if (hcRes.error) throw hcRes.error
 
-    const rawRows = (fnRes.data ?? []) as FnlttRow[]
+    const dbHeadByCode = new Map(
+      (hcRes.data ?? []).map((r) => {
+        const row = r as { corp_code: string; headcount: number | null; headcount_source: string | null }
+        return [row.corp_code, row] as const
+      }),
+    )
+
+    const headRes = await Promise.all(
+      corpCodes.map(async (corp_code) => {
+        const db = dbHeadByCode.get(corp_code)
+        if (db != null && db.headcount != null && Number.isFinite(Number(db.headcount))) {
+          const n = Math.round(Number(db.headcount))
+          const src = (db.headcount_source ?? '').trim()
+          return {
+            corp_code,
+            headcount: n,
+            note: src ? `dart_headcount · ${src}` : 'dart_headcount',
+          }
+        }
+        try {
+          const r = await fetchDartEmployeeHeadcount(corp_code, year, reprt)
+          return {
+            corp_code,
+            headcount: r.count,
+            note: r.note ? `empSttus · ${r.note}` : 'empSttus (DB 없음)',
+          }
+        } catch (e: unknown) {
+          return {
+            corp_code,
+            headcount: null,
+            note: e instanceof Error ? e.message : 'error',
+          }
+        }
+      }),
+    )
+
     if (rawRows.length === 0) {
       return NextResponse.json(
         {
@@ -260,12 +221,7 @@ export async function GET(req: NextRequest) {
       (corpRes.data ?? []).map((c) => [c.corp_code, c as { corp_code: string; corp_name: string; tier: string; is_peer: boolean }]),
     )
     const headMap = new Map(headRes.map((h) => [h.corp_code, h]))
-    const formulaMap = new Map(
-      (formulaRes.data ?? []).map((r) => [
-        String((r as { corp_code?: string }).corp_code ?? ''),
-        r as Partial<Record<MetricKey, unknown>>,
-      ]),
-    )
+    const baseFormula = toSignedFormula(DEFAULT_FORMULA)
     const rowsByCorp = new Map<string, FnlttRow[]>()
     for (const r of rawRows) {
       if (!rowsByCorp.has(r.corp_code)) rowsByCorp.set(r.corp_code, [])
@@ -275,25 +231,24 @@ export async function GET(req: NextRequest) {
     const results = corpCodes.map((corp_code) => {
       const meta = corpMap.get(corp_code)
       const corp_name = meta?.corp_name?.trim() || corp_code
-      const formula = normalizeFormulaFromDb(formulaMap.get(corp_code), corp_name)
       const rowset = rowsByCorp.get(corp_code) ?? []
       const head = headMap.get(corp_code)
 
       const th = {
-        net_operating_revenue: sumMetric(rowset, 'net_operating_revenue', formula, fsDiv, 'th'),
-        sga_including_personnel: sumMetric(rowset, 'sga_including_personnel', formula, fsDiv, 'th'),
-        operating_income: sumMetric(rowset, 'operating_income', formula, fsDiv, 'th'),
-        profit_before_tax: sumMetric(rowset, 'profit_before_tax', formula, fsDiv, 'th'),
-        net_income: sumMetric(rowset, 'net_income', formula, fsDiv, 'th'),
-        equity: sumMetric(rowset, 'equity', formula, fsDiv, 'th'),
+        net_operating_revenue: sumMetric(rowset, 'net_operating_revenue', baseFormula, fsDiv, 'th'),
+        sga_including_personnel: sumMetric(rowset, 'sga_including_personnel', baseFormula, fsDiv, 'th'),
+        operating_income: sumMetric(rowset, 'operating_income', baseFormula, fsDiv, 'th'),
+        profit_before_tax: sumMetric(rowset, 'profit_before_tax', baseFormula, fsDiv, 'th'),
+        net_income: sumMetric(rowset, 'net_income', baseFormula, fsDiv, 'th'),
+        equity: sumMetric(rowset, 'equity', baseFormula, fsDiv, 'th'),
       }
       const fr = {
-        net_operating_revenue: sumMetric(rowset, 'net_operating_revenue', formula, fsDiv, 'fr'),
-        sga_including_personnel: sumMetric(rowset, 'sga_including_personnel', formula, fsDiv, 'fr'),
-        operating_income: sumMetric(rowset, 'operating_income', formula, fsDiv, 'fr'),
-        profit_before_tax: sumMetric(rowset, 'profit_before_tax', formula, fsDiv, 'fr'),
-        net_income: sumMetric(rowset, 'net_income', formula, fsDiv, 'fr'),
-        equity: sumMetric(rowset, 'equity', formula, fsDiv, 'fr'),
+        net_operating_revenue: sumMetric(rowset, 'net_operating_revenue', baseFormula, fsDiv, 'fr'),
+        sga_including_personnel: sumMetric(rowset, 'sga_including_personnel', baseFormula, fsDiv, 'fr'),
+        operating_income: sumMetric(rowset, 'operating_income', baseFormula, fsDiv, 'fr'),
+        profit_before_tax: sumMetric(rowset, 'profit_before_tax', baseFormula, fsDiv, 'fr'),
+        net_income: sumMetric(rowset, 'net_income', baseFormula, fsDiv, 'fr'),
+        equity: sumMetric(rowset, 'equity', baseFormula, fsDiv, 'fr'),
       }
       const headcount = head?.headcount ?? null
 
@@ -302,6 +257,8 @@ export async function GET(req: NextRequest) {
         corp_name,
         tier: meta?.tier === 'large' ? 'large' : 'mid',
         is_peer: Boolean(meta?.is_peer),
+        /** 선택한 연도·보고서·fs_div로 조회된 dart_fnltt 행 수(다른 연도 적재분은 포함되지 않음) */
+        fnltt_row_count: rowset.length,
         headcount,
         headcount_note: head?.note,
         th,
