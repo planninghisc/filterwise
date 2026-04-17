@@ -6,6 +6,8 @@ import AdmZip from 'adm-zip'
 import iconv from 'iconv-lite'
 
 type FsDiv = 'OFS' | 'CFS'
+const KOREA_INVEST_CORP_CODE = '00160144'
+const SGA_QNAME = 'ifrs-full_SellingGeneralAndAdministrativeExpense'
 
 type DartFnlttApiItem = {
   rcept_no?: string
@@ -44,6 +46,7 @@ type FnlttInsertRow = {
   reprt_code: ReprtCode
   fs_div: FsDiv
   sj_div: 'BS' | 'CIS'
+  sheet_code: string | null
   account_nm: string | null
   account_id: string | null
   thstrm_amount: number | null
@@ -73,6 +76,14 @@ function toNumberOrNull(v: unknown): number | null {
     return Number.isFinite(n) ? n : null
   }
   return null
+}
+
+function adjustAmountForCorp(corpCode: string, accountId: string | null, amount: number | null): number | null {
+  if (amount == null) return null
+  if (corpCode === KOREA_INVEST_CORP_CODE && accountId === SGA_QNAME && amount < 0) {
+    return Math.abs(amount)
+  }
+  return amount
 }
 
 function pickEmployeeCountFromXbrl(items: Array<DartFnlttApiItem & { __fs_div: FsDiv }>): {
@@ -310,7 +321,8 @@ function dedupeFnlttInsertRows(rows: FnlttInsertRow[]): FnlttInsertRow[] {
   for (const r of rows) {
     const aid = (r.account_id ?? '').trim()
     const anm = (r.account_nm ?? '').trim()
-    const key = `${r.fs_div}|${r.sj_div}|${aid}|${anm}`
+    const sheet = (r.sheet_code ?? '').trim()
+    const key = `${r.fs_div}|${r.sj_div}|${sheet}|${aid}|${anm}`
     const prev = m.get(key)
     if (!prev) {
       m.set(key, r)
@@ -350,6 +362,7 @@ async function persistRowsToDartFnltt(args: {
     reprt_code: args.reprt,
     fs_div: r.fs_div,
     sj_div: r.sj_div,
+    sheet_code: r.sheet_code || null,
     account_nm: r.account_nm,
     account_id: r.account_id,
     thstrm_amount: r.thstrm_amount,
@@ -444,8 +457,16 @@ export async function GET(req: NextRequest) {
           sj_div: sjDiv,
           account_nm: (it.account_nm ?? '').toString().trim() || null,
           account_id: (it.account_id ?? '').toString().trim() || null,
-          thstrm_amount: toNumberOrNull(it.thstrm_amount),
-          frmtrm_amount: toNumberOrNull(it.frmtrm_amount),
+          thstrm_amount: adjustAmountForCorp(
+            corp_code,
+            (it.account_id ?? '').toString().trim() || null,
+            toNumberOrNull(it.thstrm_amount),
+          ),
+          frmtrm_amount: adjustAmountForCorp(
+            corp_code,
+            (it.account_id ?? '').toString().trim() || null,
+            toNumberOrNull(it.frmtrm_amount),
+          ),
           ord: toNumberOrNull(it.ord),
           currency: (it.currency ?? '').toString().trim() || null,
         }

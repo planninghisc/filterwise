@@ -1,0 +1,654 @@
+{
+  "cis": [
+    {
+      "sj": "CIS",
+      "label": "영업수익",
+      "id": "ifrs-full_Revenue",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_Revenue",
+      "qname_ofs": "ifrs-full_Revenue"
+    },
+    {
+      "sj": "CIS",
+      "label": "수수료수익",
+      "id": "ifrs-full_FeeAndCommissionIncome",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_FeeAndCommissionIncome",
+      "qname_ofs": "ifrs-full_FeeAndCommissionIncome"
+    },
+    {
+      "sj": "CIS",
+      "label": "당기손익-공정가치측정금융상품관련이익",
+      "id": "dart_GainOnFinancialInstrumentsAtFairValueThroughProfitOrLoss",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_GainOnFinancialInstrumentsAtFairValueThroughProfitOrLoss",
+      "qname_ofs": "dart_GainOnFinancialInstrumentsAtFairValueThroughProfitOrLoss"
+    },
+    {
+      "sj": "CIS",
+      "label": "파생상품관련이익",
+      "id": "dart_GainFromDerivatives",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_GainFromDerivatives",
+      "qname_ofs": "dart_GainFromDerivatives"
+    },
+    {
+      "sj": "CIS",
+      "label": "이자수익",
+      "id": "ifrs-full_RevenueFromInterest",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_RevenueFromInterest",
+      "qname_ofs": "ifrs-full_RevenueFromInterest"
+    },
+    {
+      "sj": "CIS",
+      "label": "신용손실충당금 환입액",
+      "id": "dart_ReversalOfImpairmentLossOnFinancialAssets",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_ReversalOfImpairmentLossOnFinancialAssets",
+      "qname_ofs": "dart_ReversalOfImpairmentLossOnFinancialAssets"
+    },
+    {
+      "sj": "CIS",
+      "label": "외화거래이익",
+      "id": "ifrs-full_ForeignExchangeGain",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ForeignExchangeGain",
+      "qname_ofs": "ifrs-full_ForeignExchangeGain"
+    },
+    {
+      "sj": "CIS",
+      "label": "배당수익",
+      "id": "ifrs-full_RevenueFromDividends",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_RevenueFromDividends",
+      "qname_ofs": "ifrs-full_RevenueFromDividends"
+    },
+    {
+      "sj": "CIS",
+      "label": "기타수익",
+      "id": "ifrs-full_MiscellaneousOtherOperatingIncome",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_MiscellaneousOtherOperatingIncome",
+      "qname_ofs": "ifrs-full_MiscellaneousOtherOperatingIncome"
+    },
+    {
+      "sj": "CIS",
+      "label": "영업비용",
+      "id": "ifrs-full_OperatingExpense",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_OperatingExpense",
+      "qname_ofs": "ifrs-full_OperatingExpense"
+    },
+    {
+      "sj": "CIS",
+      "label": "수수료비용",
+      "id": "ifrs-full_FeeAndCommissionExpense",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_FeeAndCommissionExpense",
+      "qname_ofs": "ifrs-full_FeeAndCommissionExpense"
+    },
+    {
+      "sj": "CIS",
+      "label": "당기손익-공정가치측정금융상품관련손실",
+      "id": "dart_LossFromFinancialInstrumentsAtFairValueThroughProfitOrLoss",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_LossFromFinancialInstrumentsAtFairValueThroughProfitOrLoss",
+      "qname_ofs": "dart_LossFromFinancialInstrumentsAtFairValueThroughProfitOrLoss"
+    },
+    {
+      "sj": "CIS",
+      "label": "파생상품관련손실",
+      "id": "dart_LossesFromDerivatives",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_LossesFromDerivatives",
+      "qname_ofs": "dart_LossesFromDerivatives"
+    },
+    {
+      "sj": "CIS",
+      "label": "이자비용",
+      "id": "ifrs-full_InterestExpense",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_InterestExpense",
+      "qname_ofs": "ifrs-full_InterestExpense"
+    },
+    {
+      "sj": "CIS",
+      "label": "신용손실충당금 전입액",
+      "id": "dart_AdditionalImpairmentLossesOfFinancialAssets",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_AdditionalImpairmentLossesOfFinancialAssets",
+      "qname_ofs": "dart_AdditionalImpairmentLossesOfFinancialAssets"
+    },
+    {
+      "sj": "CIS",
+      "label": "외화거래손실",
+      "id": "ifrs-full_ForeignExchangeLoss",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ForeignExchangeLoss",
+      "qname_ofs": "ifrs-full_ForeignExchangeLoss"
+    },
+    {
+      "sj": "CIS",
+      "label": "인건비 및 기타일반관리비",
+      "id": "ifrs-full_SellingGeneralAndAdministrativeExpense",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_SellingGeneralAndAdministrativeExpense",
+      "qname_ofs": "ifrs-full_SellingGeneralAndAdministrativeExpense"
+    },
+    {
+      "sj": "CIS",
+      "label": "기타비용",
+      "id": "ifrs-full_MiscellaneousOtherOperatingExpense",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_MiscellaneousOtherOperatingExpense",
+      "qname_ofs": "ifrs-full_MiscellaneousOtherOperatingExpense"
+    },
+    {
+      "sj": "CIS",
+      "label": "영업이익",
+      "id": "ifrs-full_ProfitLossFromOperatingActivities",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ProfitLossFromOperatingActivities",
+      "qname_ofs": "ifrs-full_ProfitLossFromOperatingActivities"
+    },
+    {
+      "sj": "CIS",
+      "label": "지분법이익",
+      "id": "ifrs-full_ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod",
+      "qname_ofs": "ifrs-full_ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod"
+    },
+    {
+      "sj": "CIS",
+      "label": "영업외수익",
+      "id": "dart_NonOperatingIncome",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_NonOperatingIncome",
+      "qname_ofs": "dart_NonOperatingIncome"
+    },
+    {
+      "sj": "CIS",
+      "label": "영업외비용",
+      "id": "dart_NonOperatingExpense",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_NonOperatingExpense",
+      "qname_ofs": "dart_NonOperatingExpense"
+    },
+    {
+      "sj": "CIS",
+      "label": "법인세비용차감전순이익",
+      "id": "ifrs-full_ProfitLossBeforeTax",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ProfitLossBeforeTax",
+      "qname_ofs": "ifrs-full_ProfitLossBeforeTax"
+    },
+    {
+      "sj": "CIS",
+      "label": "법인세비용",
+      "id": "ifrs-full_IncomeTaxExpenseContinuingOperations",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_IncomeTaxExpenseContinuingOperations",
+      "qname_ofs": "ifrs-full_IncomeTaxExpenseContinuingOperations"
+    },
+    {
+      "sj": "CIS",
+      "label": "당기순이익",
+      "id": "ifrs-full_ProfitLoss",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ProfitLoss",
+      "qname_ofs": "ifrs-full_ProfitLoss"
+    },
+    {
+      "sj": "CIS",
+      "label": "지배기업의 소유주에게 귀속되는 당기순이익",
+      "id": "ifrs-full_IncomeFromContinuingOperationsAttributableToOwnersOfParent",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_IncomeFromContinuingOperationsAttributableToOwnersOfParent",
+      "qname_ofs": "ifrs-full_IncomeFromContinuingOperationsAttributableToOwnersOfParent"
+    },
+    {
+      "sj": "CIS",
+      "label": "대손준비금 반영후 조정이익",
+      "id": "dart_AdjustedProfitLossNetOfRegulatoryReserveForCreditLoss",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_AdjustedProfitLossNetOfRegulatoryReserveForCreditLoss",
+      "qname_ofs": "dart_AdjustedProfitLossNetOfRegulatoryReserveForCreditLoss"
+    },
+    {
+      "sj": "CIS",
+      "label": "기타포괄손익",
+      "id": "ifrs-full_OtherComprehensiveIncome",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_OtherComprehensiveIncome",
+      "qname_ofs": "ifrs-full_OtherComprehensiveIncome"
+    },
+    {
+      "sj": "CIS",
+      "label": "당기손익으로 재분류되는 세후기타포괄손익",
+      "id": "ifrs-full_OtherComprehensiveIncomeThatWillBeReclassifiedToProfitOrLossNetOfTax",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_OtherComprehensiveIncomeThatWillBeReclassifiedToProfitOrLossNetOfTax",
+      "qname_ofs": "ifrs-full_OtherComprehensiveIncomeThatWillBeReclassifiedToProfitOrLossNetOfTax"
+    },
+    {
+      "sj": "CIS",
+      "label": "지분법자본변동 - 후속적으로 재분류 되는 항목",
+      "id": "ifrs-full_ShareOfOtherComprehensiveIncomeOfAssociatesAndJointVenturesAccountedForUsingEquityMethodThatWillBeReclassifiedToProfitOrLossNetOfTax",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ShareOfOtherComprehensiveIncomeOfAssociatesAndJointVenturesAccountedForUsingEquityMethodThatWillBeReclassifiedToProfitOrLossNetOfTax",
+      "qname_ofs": "ifrs-full_ShareOfOtherComprehensiveIncomeOfAssociatesAndJointVenturesAccountedForUsingEquityMethodThatWillBeReclassifiedToProfitOrLossNetOfTax"
+    },
+    {
+      "sj": "CIS",
+      "label": "해외사업환산손익",
+      "id": "ifrs-full_OtherComprehensiveIncomeNetOfTaxExchangeDifferencesOnTranslation",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_OtherComprehensiveIncomeNetOfTaxExchangeDifferencesOnTranslation",
+      "qname_ofs": "ifrs-full_OtherComprehensiveIncomeNetOfTaxExchangeDifferencesOnTranslation"
+    },
+    {
+      "sj": "CIS",
+      "label": "당기손익으로 재분류 되지않는 세후기타포괄손익",
+      "id": "ifrs-full_OtherComprehensiveIncomeThatWillNotBeReclassifiedToProfitOrLossNetOfTax",
+      "type": "xbrli:stringItemType",
+      "qname_cfs": "ifrs-full_OtherComprehensiveIncomeThatWillNotBeReclassifiedToProfitOrLossNetOfTax",
+      "qname_ofs": "ifrs-full_OtherComprehensiveIncomeThatWillNotBeReclassifiedToProfitOrLossNetOfTax"
+    },
+    {
+      "sj": "CIS",
+      "label": "순확정급여부채의 재측정요소",
+      "id": "ifrs-full_OtherComprehensiveIncomeNetOfTaxGainsLossesOnRemeasurementsOfDefinedBenefitPlans",
+      "type": "xbrli:perShareItemType",
+      "qname_cfs": "ifrs-full_OtherComprehensiveIncomeNetOfTaxGainsLossesOnRemeasurementsOfDefinedBenefitPlans",
+      "qname_ofs": "ifrs-full_OtherComprehensiveIncomeNetOfTaxGainsLossesOnRemeasurementsOfDefinedBenefitPlans"
+    },
+    {
+      "sj": "CIS",
+      "label": "기타포괄손익-공정가치측정지분상품평가손익",
+      "id": "ifrs-full_OtherComprehensiveIncomeNetOfTaxGainsLossesFromInvestmentsInEquityInstruments",
+      "type": "xbrli:perShareItemType",
+      "qname_cfs": "ifrs-full_OtherComprehensiveIncomeNetOfTaxGainsLossesFromInvestmentsInEquityInstruments",
+      "qname_ofs": "ifrs-full_OtherComprehensiveIncomeNetOfTaxGainsLossesFromInvestmentsInEquityInstruments"
+    },
+    {
+      "sj": "CIS",
+      "label": "당기손익-공정가치지정금융부채의 자기신용위험조정",
+      "id": "ifrs-full_OtherComprehensiveIncomeNetOfTaxChangeInFairValueOfFinancialLiabilityAttributableToChangeInCreditRiskOfLiability",
+      "type": "xbrli:perShareItemType",
+      "qname_cfs": "ifrs-full_OtherComprehensiveIncomeNetOfTaxChangeInFairValueOfFinancialLiabilityAttributableToChangeInCreditRiskOfLiability",
+      "qname_ofs": "ifrs-full_OtherComprehensiveIncomeNetOfTaxChangeInFairValueOfFinancialLiabilityAttributableToChangeInCreditRiskOfLiability"
+    },
+    {
+      "sj": "CIS",
+      "label": "당기총포괄이익의 귀속",
+      "id": "ifrs-full_ComprehensiveIncome",
+      "type": "xbrli:perShareItemType",
+      "qname_cfs": "ifrs-full_ComprehensiveIncome",
+      "qname_ofs": "ifrs-full_ComprehensiveIncome"
+    },
+    {
+      "sj": "CIS",
+      "label": "지배기업의 소유주에게 귀속되는 당기총포괄이익",
+      "id": "ifrs-full_ComprehensiveIncomeFromContinuingOperationsAttributableToOwnersOfParent",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ComprehensiveIncomeFromContinuingOperationsAttributableToOwnersOfParent",
+      "qname_ofs": "ifrs-full_ComprehensiveIncomeFromContinuingOperationsAttributableToOwnersOfParent"
+    },
+    {
+      "sj": "CIS",
+      "label": "비지배지분에 귀속되는 당기총포괄이익",
+      "id": "ifrs-full_ComprehensiveIncomeFromContinuingOperationsAttributableToNoncontrollingInterests",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_ComprehensiveIncomeFromContinuingOperationsAttributableToNoncontrollingInterests",
+      "qname_ofs": "ifrs-full_ComprehensiveIncomeFromContinuingOperationsAttributableToNoncontrollingInterests"
+    },
+    {
+      "sj": "CIS",
+      "label": "보통주 기본주당이익",
+      "id": "ifrs-full_BasicEarningsLossPerShareFromContinuingOperations",
+      "type": "num:perShareItemType",
+      "qname_cfs": "ifrs-full_BasicEarningsLossPerShareFromContinuingOperations",
+      "qname_ofs": "ifrs-full_BasicEarningsLossPerShareFromContinuingOperations"
+    },
+    {
+      "sj": "CIS",
+      "label": "보통주 희석주당이익",
+      "id": "ifrs-full_DilutedEarningsLossPerShareFromContinuingOperations",
+      "type": "num:perShareItemType",
+      "qname_cfs": "ifrs-full_DilutedEarningsLossPerShareFromContinuingOperations",
+      "qname_ofs": "ifrs-full_DilutedEarningsLossPerShareFromContinuingOperations"
+    },
+    {
+      "sj": "CIS",
+      "label": "구형우선주 기본주당이익",
+      "id": "dart_BasicEarningsLossPerSharePreferredStockFromContinuingOperations",
+      "type": "num:perShareItemType",
+      "qname_cfs": "dart_BasicEarningsLossPerSharePreferredStockFromContinuingOperations",
+      "qname_ofs": "dart_BasicEarningsLossPerSharePreferredStockFromContinuingOperations"
+    },
+    {
+      "sj": "CIS",
+      "label": "구형우선주 희석주당이익",
+      "id": "dart_DilutedEarningsLossPerSharePreferredStockFromContinuingOperations",
+      "type": "num:perShareItemType",
+      "qname_cfs": "dart_DilutedEarningsLossPerSharePreferredStockFromContinuingOperations",
+      "qname_ofs": "dart_DilutedEarningsLossPerSharePreferredStockFromContinuingOperations"
+    }
+  ],
+  "bs": [
+    {
+      "sj": "BS",
+      "label": "현금및예치금",
+      "id": "dart_CashAndDuefromBanks",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_CashAndDuefromBanks",
+      "qname_ofs": "dart_CashAndDuefromBanks"
+    },
+    {
+      "sj": "BS",
+      "label": "당기손익-공정가치측정금융자산",
+      "id": "ifrs-full_FinancialAssetsAtFairValueThroughProfitOrLoss",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_FinancialAssetsAtFairValueThroughProfitOrLoss",
+      "qname_ofs": "ifrs-full_FinancialAssetsAtFairValueThroughProfitOrLoss"
+    },
+    {
+      "sj": "BS",
+      "label": "기타포괄손익-공정가치측정금융자산",
+      "id": "ifrs-full_FinancialAssetsAtFairValueThroughOtherComprehensiveIncome",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_FinancialAssetsAtFairValueThroughOtherComprehensiveIncome",
+      "qname_ofs": "ifrs-full_FinancialAssetsAtFairValueThroughOtherComprehensiveIncome"
+    },
+    {
+      "sj": "BS",
+      "label": "관계기업투자",
+      "id": "ifrs-full_InvestmentAccountedForUsingEquityMethod",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_InvestmentAccountedForUsingEquityMethod",
+      "qname_ofs": "ifrs-full_InvestmentAccountedForUsingEquityMethod"
+    },
+    {
+      "sj": "BS",
+      "label": "파생상품자산",
+      "id": "ifrs-full_DerivativeFinancialAssets",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_DerivativeFinancialAssets",
+      "qname_ofs": "ifrs-full_DerivativeFinancialAssets"
+    },
+    {
+      "sj": "BS",
+      "label": "상각후원가측정금융자산",
+      "id": "ifrs-full_FinancialAssetsAtAmortisedCost",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_FinancialAssetsAtAmortisedCost",
+      "qname_ofs": "ifrs-full_FinancialAssetsAtAmortisedCost"
+    },
+    {
+      "sj": "BS",
+      "label": "투자부동산",
+      "id": "ifrs-full_InvestmentProperty",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_InvestmentProperty",
+      "qname_ofs": "ifrs-full_InvestmentProperty"
+    },
+    {
+      "sj": "BS",
+      "label": "유형자산",
+      "id": "ifrs-full_PropertyPlantAndEquipment",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_PropertyPlantAndEquipment",
+      "qname_ofs": "ifrs-full_PropertyPlantAndEquipment"
+    },
+    {
+      "sj": "BS",
+      "label": "사용권자산",
+      "id": "ifrs-full_RightofuseAssets",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_RightofuseAssets",
+      "qname_ofs": "ifrs-full_RightofuseAssets"
+    },
+    {
+      "sj": "BS",
+      "label": "무형자산",
+      "id": "ifrs-full_IntangibleAssetsAndGoodwill",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_IntangibleAssetsAndGoodwill",
+      "qname_ofs": "ifrs-full_IntangibleAssetsAndGoodwill"
+    },
+    {
+      "sj": "BS",
+      "label": "당기법인세자산",
+      "id": "ifrs-full_CurrentTaxAssets",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_CurrentTaxAssets",
+      "qname_ofs": "ifrs-full_CurrentTaxAssets"
+    },
+    {
+      "sj": "BS",
+      "label": "이연법인세자산",
+      "id": "ifrs-full_DeferredTaxAssets",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_DeferredTaxAssets",
+      "qname_ofs": "ifrs-full_DeferredTaxAssets"
+    },
+    {
+      "sj": "BS",
+      "label": "기타비금융자산",
+      "id": "ifrs-full_OtherNonfinancialAssets",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_OtherNonfinancialAssets",
+      "qname_ofs": "ifrs-full_OtherNonfinancialAssets"
+    },
+    {
+      "sj": "BS",
+      "label": "매각예정자산",
+      "id": "ifrs-full_NoncurrentAssetsOrDisposalGroupsClassifiedAsHeldForSale",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_NoncurrentAssetsOrDisposalGroupsClassifiedAsHeldForSale",
+      "qname_ofs": "ifrs-full_NoncurrentAssetsOrDisposalGroupsClassifiedAsHeldForSale"
+    },
+    {
+      "sj": "BS",
+      "label": "자산총계",
+      "id": "ifrs-full_Assets",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_Assets",
+      "qname_ofs": "ifrs-full_Assets"
+    },
+    {
+      "sj": "BS",
+      "label": "예수부채",
+      "id": "ifrs-full_DepositsFromCustomers",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_DepositsFromCustomers",
+      "qname_ofs": "ifrs-full_DepositsFromCustomers"
+    },
+    {
+      "sj": "BS",
+      "label": "당기손익-공정가치측정금융부채",
+      "id": "ifrs-full_FinancialLiabilitiesAtFairValueThroughProfitOrLoss",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_FinancialLiabilitiesAtFairValueThroughProfitOrLoss",
+      "qname_ofs": "ifrs-full_FinancialLiabilitiesAtFairValueThroughProfitOrLoss"
+    },
+    {
+      "sj": "BS",
+      "label": "차입부채",
+      "id": "ifrs-full_OtherBorrowings",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_OtherBorrowings",
+      "qname_ofs": "ifrs-full_OtherBorrowings"
+    },
+    {
+      "sj": "BS",
+      "label": "사채",
+      "id": "ifrs-full_BondsIssued",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_BondsIssued",
+      "qname_ofs": "ifrs-full_BondsIssued"
+    },
+    {
+      "sj": "BS",
+      "label": "파생상품부채",
+      "id": "ifrs-full_DerivativeFinancialLiabilities",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_DerivativeFinancialLiabilities",
+      "qname_ofs": "ifrs-full_DerivativeFinancialLiabilities"
+    },
+    {
+      "sj": "BS",
+      "label": "순확정급여부채",
+      "id": "ifrs-full_LiabilityAssetOfDefinedBenefitPlans",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_LiabilityAssetOfDefinedBenefitPlans",
+      "qname_ofs": "ifrs-full_LiabilityAssetOfDefinedBenefitPlans"
+    },
+    {
+      "sj": "BS",
+      "label": "기타장기종업원급여부채",
+      "id": "entity00148610_OtherLongTermEmployeeBenefitLiabilitiesOfLiabilitiesAbstract",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "entity00148610_OtherLongTermEmployeeBenefitLiabilitiesOfLiabilitiesAbstract",
+      "qname_ofs": "entity00148610_OtherLongTermEmployeeBenefitLiabilitiesOfLiabilitiesAbstract"
+    },
+    {
+      "sj": "BS",
+      "label": "충당부채",
+      "id": "ifrs-full_OtherProvisions",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_OtherProvisions",
+      "qname_ofs": "ifrs-full_OtherProvisions"
+    },
+    {
+      "sj": "BS",
+      "label": "당기법인세부채",
+      "id": "ifrs-full_CurrentTaxLiabilities",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_CurrentTaxLiabilities",
+      "qname_ofs": "ifrs-full_CurrentTaxLiabilities"
+    },
+    {
+      "sj": "BS",
+      "label": "이연법인세부채",
+      "id": "ifrs-full_DeferredTaxLiabilities",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_DeferredTaxLiabilities",
+      "qname_ofs": "ifrs-full_DeferredTaxLiabilities"
+    },
+    {
+      "sj": "BS",
+      "label": "기타금융부채",
+      "id": "ifrs-full_OtherFinancialLiabilities",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_OtherFinancialLiabilities",
+      "qname_ofs": "ifrs-full_OtherFinancialLiabilities"
+    },
+    {
+      "sj": "BS",
+      "label": "기타비금융부채",
+      "id": "frs-full_OtherNonfinancialLiabilities",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "frs-full_OtherNonfinancialLiabilities",
+      "qname_ofs": "frs-full_OtherNonfinancialLiabilities"
+    },
+    {
+      "sj": "BS",
+      "label": "부채총계",
+      "id": "ifrs-full_Liabilities",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_Liabilities",
+      "qname_ofs": "ifrs-full_Liabilities"
+    },
+    {
+      "sj": "BS",
+      "label": "지배주주지분",
+      "id": "ifrs-full_EquityAttributableToOwnersOfParent",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_EquityAttributableToOwnersOfParent",
+      "qname_ofs": "ifrs-full_EquityAttributableToOwnersOfParent"
+    },
+    {
+      "sj": "BS",
+      "label": "자본금",
+      "id": "ifrs-full_IssuedCapital",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_IssuedCapital",
+      "qname_ofs": "ifrs-full_IssuedCapital"
+    },
+    {
+      "sj": "BS",
+      "label": "자본잉여금",
+      "id": "dart_CapitalSurplus",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_CapitalSurplus",
+      "qname_ofs": "dart_CapitalSurplus"
+    },
+    {
+      "sj": "BS",
+      "label": "자본조정",
+      "id": "dart_CapitalAdjustments",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_CapitalAdjustments",
+      "qname_ofs": "dart_CapitalAdjustments"
+    },
+    {
+      "sj": "BS",
+      "label": "기타포괄손익누계액",
+      "id": "ifrs-full_AccumulatedOtherComprehensiveIncome",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_AccumulatedOtherComprehensiveIncome",
+      "qname_ofs": "ifrs-full_AccumulatedOtherComprehensiveIncome"
+    },
+    {
+      "sj": "BS",
+      "label": "이익잉여금",
+      "id": "ifrs-full_RetainedEarnings",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_RetainedEarnings",
+      "qname_ofs": "ifrs-full_RetainedEarnings"
+    },
+    {
+      "sj": "BS",
+      "label": "대손준비금 적립액",
+      "id": "dart_RegulatoryReserveForCreditLoss",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_RegulatoryReserveForCreditLoss",
+      "qname_ofs": "dart_RegulatoryReserveForCreditLoss"
+    },
+    {
+      "sj": "BS",
+      "label": "대손준비금 전입(환입) 예정액",
+      "id": "dart_RegulatoryReserveForCreditLossToBeAddedReversed",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "dart_RegulatoryReserveForCreditLossToBeAddedReversed",
+      "qname_ofs": "dart_RegulatoryReserveForCreditLossToBeAddedReversed"
+    },
+    {
+      "sj": "BS",
+      "label": "비지배지분",
+      "id": "ifrs-full_NoncontrollingInterests",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_NoncontrollingInterests",
+      "qname_ofs": "ifrs-full_NoncontrollingInterests"
+    },
+    {
+      "sj": "BS",
+      "label": "자본총계",
+      "id": "ifrs-full_EquityAttributableToOwnersOfParent",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_EquityAttributableToOwnersOfParent",
+      "qname_ofs": "ifrs-full_EquityAttributableToOwnersOfParent"
+    },
+    {
+      "sj": "BS",
+      "label": "부채및자본총계",
+      "id": "ifrs-full_EquityAndLiabilities",
+      "type": "xbrli:monetaryItemType",
+      "qname_cfs": "ifrs-full_EquityAndLiabilities",
+      "qname_ofs": "ifrs-full_EquityAndLiabilities"
+    }
+  ]
+}

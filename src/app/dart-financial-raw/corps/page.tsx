@@ -292,7 +292,7 @@ export default function DartCorpSettingsPage() {
                 <th className="px-3 py-2 text-left font-semibold border-b w-[110px]">규모</th>
                 <th className="px-3 py-2 text-center font-semibold border-b w-[100px]">피어</th>
                 <th className="px-3 py-2 text-left font-semibold border-b min-w-[160px]">회사명</th>
-                <th className="px-3 py-2 text-left font-semibold border-b w-[120px] font-mono">고유번호</th>
+                <th className="px-3 py-2 text-left font-semibold border-b w-[120px]">고유번호</th>
                 <th className="px-3 py-2 text-left font-semibold border-b w-[140px]">표시</th>
                 <th className="px-3 py-2 text-right font-semibold border-b w-[88px]">삭제</th>
               </tr>
@@ -353,7 +353,7 @@ export default function DartCorpSettingsPage() {
                         className="h-9 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[13px]"
                       />
                     </td>
-                    <td className="px-3 py-2 align-middle font-mono text-zinc-600">{r.corp_code}</td>
+                    <td className="px-3 py-2 align-middle text-zinc-600 tabular-nums">{r.corp_code}</td>
                     <td className="px-3 py-2 align-middle text-zinc-600 text-[12px]">{formatDartCorpLabel(r.tier, r.is_peer)}</td>
                     <td className="px-3 py-2 align-middle text-right">
                       <button

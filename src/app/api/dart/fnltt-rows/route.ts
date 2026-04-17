@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     let q = supabaseAdmin
       .from('dart_fnltt')
       .select(
-        'sj_div, account_nm, account_id, canon_key, canon_score, thstrm_amount, frmtrm_amount, ord, currency',
+        'sj_div, sheet_code, account_nm, account_id, canon_key, canon_score, thstrm_amount, frmtrm_amount, ord, currency',
       )
       .eq('corp_code', corp_code)
       .eq('bsns_year', year)

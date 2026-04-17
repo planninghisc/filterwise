@@ -1,119 +1,140 @@
-// src/app/dart-analysis/page.tsx
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { CANON_OPTIONS } from '@/lib/accountCanonical'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { formatDartCorpLabel, mergeDartCorpsFromDb, type MergedDartCorp } from '@/data/dartCorpRows'
-import DartAnalysisDashboard, { type DartAnalysisRow } from '@/components/dart/DartAnalysisDashboard'
 
 type CorpItem = MergedDartCorp
-type SyncResult = {
+type ReprtCode = '11011' | '11014' | '11012' | '11013'
+type FsDiv = 'OFS' | 'CFS'
+type MetricKey =
+  | 'net_operating_revenue'
+  | 'sga_including_personnel'
+  | 'operating_income'
+  | 'profit_before_tax'
+  | 'net_income'
+  | 'equity'
+type AxisKey = MetricKey | 'headcount' | 'roe' | 'cir' | 'productivity'
+
+type Row = {
   corp_code: string
-  sj_div?: string
-  ok: boolean
-  message?: string
-  saved?: number
+  corp_name: string
+  tier: 'large' | 'mid'
+  is_peer: boolean
+  headcount: number | null
+  headcount_note?: string
+  th: Record<MetricKey, number | null>
+  fr: Record<MetricKey, number | null>
+  ratio: {
+    roe: number | null
+    cir: number | null
+    productivity: number | null
+  }
 }
 
-type MetricVal = { th: number; fr: number }
-type BoardApiRow = { corp_code: string; corp_name: string; metrics: Record<string, MetricVal> }
+type Bundle = {
+  ok: boolean
+  year: number
+  reprt: string
+  fs_div: FsDiv
+  sheets: { cis: string; bs: string }
+  metricLabels: Record<MetricKey, string>
+  rows: Row[]
+}
 
-const REPRTS = [
+const REPRTS: { code: ReprtCode; name: string }[] = [
   { code: '11011', name: '사업보고서(연간)' },
   { code: '11014', name: '3분기보고서' },
   { code: '11012', name: '반기보고서' },
   { code: '11013', name: '1분기보고서' },
-] as const
-
-type ReprtCode = (typeof REPRTS)[number]['code']
-type FsDiv = 'OFS' | 'CFS'
+]
 
 const UNITS = [
   { label: '원', value: 1 },
   { label: '천원', value: 1_000 },
   { label: '백만원', value: 1_000_000 },
   { label: '억원', value: 100_000_000 },
-  { label: '조원', value: 1_000_000_000_000 },
-] as const
+]
 
-/** metrics-board API와 동일 순서 */
-const BOARD_KEYS = [
-  'PL_REVENUE',
-  'PL_OPERATING_PROFIT',
-  'PL_SGA',
-  'PL_NET_PROFIT',
-  'BS_TOTAL_ASSETS',
-  'BS_TOTAL_EQUITY',
-] as const
+const METRICS: MetricKey[] = [
+  'net_operating_revenue',
+  'sga_including_personnel',
+  'operating_income',
+  'profit_before_tax',
+  'net_income',
+  'equity',
+]
 
-const HIGHLIGHT_CORP = '한화투자증권'
-const HIGHLIGHT_ROW = '#FFF7ED'
+const COLORS = ['#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#27272a', '#78716c', '#6b7280']
+const HANWHA = '한화투자증권'
+const HANWHA_COLOR = '#f97316'
 
-function round2(n: number) {
-  return Math.round(n * 100) / 100
+function roundInt(n: number) {
+  return Math.round(n)
 }
 
-function safeRatio(num: number, den: number): number | null {
-  if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) return null
-  return num / den
+function fmtInt(n: number) {
+  return roundInt(n).toLocaleString()
+}
+
+function fmtPercent1(n: number) {
+  return n.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
+function isHanwha(name: string) {
+  return name.includes(HANWHA)
+}
+
+function num(v: number | null, div = 1): number | null {
+  if (v == null || Number.isNaN(Number(v))) return null
+  return Number(v) / div
+}
+
+function getGroupRows(rows: Row[], g: 'large' | 'mid' | 'peer') {
+  if (g === 'large') return rows.filter((r) => r.tier === 'large')
+  if (g === 'mid') return rows.filter((r) => r.tier === 'mid')
+  return rows.filter((r) => r.tier === 'mid' && r.is_peer)
+}
+
+function pickAxis(row: Row, key: AxisKey, showCurrentOnly: boolean, unitDivisor: number): number | null {
+  if (key === 'headcount') return row.headcount
+  if (key === 'roe') return row.ratio.roe == null ? null : row.ratio.roe * 100
+  if (key === 'cir') return row.ratio.cir == null ? null : row.ratio.cir * 100
+  if (key === 'productivity') return row.ratio.productivity
+  const base = showCurrentOnly ? row.th[key] : (row.th[key] ?? row.fr[key])
+  return num(base, unitDivisor)
 }
 
 export default function DartAnalysisPage() {
-  const defaultYear = new Date().getFullYear() - 1
-  const [year, setYear] = useState<number>(defaultYear)
+  const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
   const [reprt, setReprt] = useState<ReprtCode>('11011')
   const [fsDiv, setFsDiv] = useState<FsDiv>('OFS')
   const [unit, setUnit] = useState<number>(100_000_000)
-  const [showCurrentOnly, setShowCurrentOnly] = useState<boolean>(false)
+  const [showCurrentOnly, setShowCurrentOnly] = useState<boolean>(true)
 
   const [corps, setCorps] = useState<CorpItem[]>([])
   const [selectedCorps, setSelectedCorps] = useState<string[]>([])
   const [loadingCorps, setLoadingCorps] = useState(false)
 
-  const [boardRows, setBoardRows] = useState<BoardApiRow[]>([])
-  const [headByCode, setHeadByCode] = useState<Map<string, { count: number | null; note?: string }>>(new Map())
+  const [bundle, setBundle] = useState<Bundle | null>(null)
   const [loadingRun, setLoadingRun] = useState(false)
-  const [runError, setRunError] = useState<string>('')
-  /** 기본 false: Supabase dart_fnltt만으로 지표 계산. true면 분석 전 OpenDART fnltt API로 테이블을 덮어씀 */
-  const [syncBeforeRun, setSyncBeforeRun] = useState(false)
+  const [runError, setRunError] = useState('')
 
-  /** 계정별 원장 (dart_fnltt 행) */
-  const [detailCorp, setDetailCorp] = useState<string>('')
-  const [detailSj, setDetailSj] = useState<'ALL' | 'BS' | 'CIS'>('ALL')
-  const [detailQuery, setDetailQuery] = useState('')
-  const [detailRows, setDetailRows] = useState<
-    Array<{
-      sj_div: string
-      account_nm: string | null
-      account_id: string | null
-      canon_key: string | null
-      canon_score: number | null
-      thstrm_amount: number | null
-      frmtrm_amount: number | null
-      ord: number | null
-      currency: string | null
-    }>
-  >([])
-  const [loadingDetail, setLoadingDetail] = useState(false)
-  const [detailError, setDetailError] = useState('')
-  /** 원장 조회 성공 후 0건일 때 안내 */
-  const [detailInfo, setDetailInfo] = useState('')
-
-  const [mainTab, setMainTab] = useState<'dashboard' | 'table' | 'ledger'>('dashboard')
-
-  const corpByCode = useMemo(() => new Map(corps.map((c) => [c.corp_code, c])), [corps])
-
-  const labelByKey = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const o of [...CANON_OPTIONS.BS, ...CANON_OPTIONS.CIS]) {
-      m.set(o.key, o.label)
-    }
-    return m
-  }, [])
-
-  const fmt = (v?: number | null) => (v == null || Number.isNaN(v) ? '-' : v.toLocaleString(undefined, { maximumFractionDigits: 2 }))
-  const signClass = (n: number) => (n > 0 ? 'text-red-600' : n < 0 ? 'text-blue-600' : '')
+  const [metricKey, setMetricKey] = useState<AxisKey>('net_operating_revenue')
+  const [axisX, setAxisX] = useState<AxisKey>('headcount')
+  const [axisY, setAxisY] = useState<AxisKey>('net_operating_revenue')
 
   useEffect(() => {
     const loadCorps = async () => {
@@ -133,260 +154,166 @@ export default function DartAnalysisPage() {
     loadCorps()
   }, [])
 
-  useEffect(() => {
-    if (corps.length === 0) return
-    setDetailCorp((prev) => {
-      if (prev && corps.some((c) => c.corp_code === prev)) return prev
-      return corps[0]!.corp_code
-    })
-  }, [corps])
-
-  const runAnalysis = useCallback(async () => {
+  const runAnalysis = async () => {
     if (selectedCorps.length === 0) return
     setLoadingRun(true)
     setRunError('')
+    setBundle(null)
     try {
-      if (syncBeforeRun) {
-        const syncRes = await fetch('/api/dart/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            corp_codes: selectedCorps,
-            year,
-            reprt,
-            fs_div: fsDiv,
-            sj_divs: ['CIS', 'BS', 'CF', 'SCE'],
-          }),
-        })
-        const syncJson = (await syncRes.json()) as { ok?: boolean; results?: SyncResult[]; error?: string }
-        if (!syncRes.ok && !syncJson.results) {
-          throw new Error(syncJson.error ?? `동기화 실패 (HTTP ${syncRes.status})`)
-        }
-        if (Array.isArray(syncJson.results)) {
-          const failed = syncJson.results.filter((r) => !r.ok)
-          if (failed.length > 0) {
-            const first = failed[0]
-            throw new Error(
-              `DART 동기화 실패 ${failed.length}건 (예: ${first.corp_code}${first.sj_div ? ` ${first.sj_div}` : ''}${first.message ? ` — ${first.message}` : ''})`,
-            )
-          }
-        }
-      }
-
       const q = new URLSearchParams({
         year: String(year),
         reprt,
         fs_div: fsDiv,
         corp_codes: selectedCorps.join(','),
       })
-      const boardRes = await fetch(`/api/dart/metrics-board?` + q.toString())
-      const boardJson = (await boardRes.json()) as { ok?: boolean; rows?: BoardApiRow[]; error?: string }
-      if (!boardRes.ok || !boardJson.ok) {
-        throw new Error(boardJson.error ?? '지표 보드 조회에 실패했습니다.')
-      }
-      setBoardRows(boardJson.rows ?? [])
-
-      const empRes = await fetch(`/api/dart/employees?` + q.toString())
-      const empJson = (await empRes.json()) as {
-        ok?: boolean
-        items?: Array<{ corp_code: string; headcount: number | null; note?: string }>
-        error?: string
-      }
-      if (!empRes.ok || !empJson.ok) {
-        throw new Error(empJson.error ?? '임직원 현황 조회에 실패했습니다.')
-      }
-      const m = new Map<string, { count: number | null; note?: string }>()
-      for (const it of empJson.items ?? []) {
-        m.set(it.corp_code, { count: it.headcount, note: it.note })
-      }
-      setHeadByCode(m)
+      const res = await fetch(`/api/dart/custom-analysis?${q.toString()}`)
+      const json = (await res.json()) as Bundle & { ok?: boolean; error?: string }
+      if (!res.ok || !json.ok) throw new Error(json.error ?? '분석 데이터를 불러오지 못했습니다.')
+      setBundle(json)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '분석 중 오류가 발생했습니다.'
-      setBoardRows([])
-      setHeadByCode(new Map())
-      setRunError(msg)
+      setRunError(e instanceof Error ? e.message : '오류가 발생했습니다.')
     } finally {
       setLoadingRun(false)
     }
-  }, [selectedCorps, year, reprt, fsDiv, syncBeforeRun])
+  }
 
-  const tableRows = useMemo((): DartAnalysisRow[] => {
-    const div = unit || 1
-    return boardRows.map((r) => {
-      const meta = corpByCode.get(r.corp_code)
-      const tier = meta?.tier ?? 'mid'
-      const is_peer = meta?.is_peer ?? false
-      const emp = headByCode.get(r.corp_code)
-      const hc = emp?.count ?? null
-      const m = r.metrics
-      const scale = (mv: MetricVal) => ({
-        th: mv.th / div,
-        fr: mv.fr / div,
-      })
-      const rev = scale(m.PL_REVENUE ?? { th: 0, fr: 0 })
-      const op = scale(m.PL_OPERATING_PROFIT ?? { th: 0, fr: 0 })
-      const sga = scale(m.PL_SGA ?? { th: 0, fr: 0 })
-      const net = scale(m.PL_NET_PROFIT ?? { th: 0, fr: 0 })
-      const assets = scale(m.BS_TOTAL_ASSETS ?? { th: 0, fr: 0 })
-      const equity = scale(m.BS_TOTAL_EQUITY ?? { th: 0, fr: 0 })
+  const visibleRows = useMemo(() => {
+    const set = new Set(selectedCorps)
+    return (bundle?.rows ?? []).filter((r) => set.has(r.corp_code))
+  }, [bundle, selectedCorps])
 
-      const revN = m.PL_REVENUE?.th ?? 0
-      const opN = m.PL_OPERATING_PROFIT?.th ?? 0
-      const netN = m.PL_NET_PROFIT?.th ?? 0
-      const astN = m.BS_TOTAL_ASSETS?.th ?? 0
-      const eqN = m.BS_TOTAL_EQUITY?.th ?? 0
+  const unitLabel = UNITS.find((u) => u.value === unit)?.label ?? '원'
 
-      const perRev = hc && hc > 0 ? revN / hc : null
-      const perOp = hc && hc > 0 ? opN / hc : null
-      const roa = safeRatio(netN, astN)
-      const roe = safeRatio(netN, eqN)
+  const metricLabel = useMemo(() => {
+    if (!bundle) return '지표'
+    if (metricKey === 'roe') return 'ROE(%)'
+    if (metricKey === 'cir') return 'CIR(%)'
+    if (metricKey === 'productivity') return '인당생산성(원)'
+    if (metricKey === 'headcount') return '임직원 수'
+    return bundle.metricLabels[metricKey]
+  }, [bundle, metricKey])
+  const metricIsPercent = metricKey === 'roe' || metricKey === 'cir'
 
+  const sortedRows = useMemo(() => {
+    const withVal = visibleRows.map((r) => ({
+      row: r,
+      val: pickAxis(r, metricKey, showCurrentOnly, unit),
+    }))
+    withVal.sort((a, b) => {
+      if (a.val == null && b.val == null) return a.row.corp_name.localeCompare(b.row.corp_name, 'ko')
+      if (a.val == null) return 1
+      if (b.val == null) return -1
+      if (b.val !== a.val) return b.val - a.val
+      return a.row.corp_name.localeCompare(b.row.corp_name, 'ko')
+    })
+    return withVal.map((x) => x.row)
+  }, [visibleRows, metricKey, showCurrentOnly, unit])
+
+  const companyBar = useMemo(() => {
+    return sortedRows.map((r, i) => {
+      const v = pickAxis(r, metricKey, showCurrentOnly, unit)
       return {
-        corp_code: r.corp_code,
-        corp_name: r.corp_name,
-        tier,
-        is_peer,
-        headcount: hc,
-        empNote: emp?.note,
-        rev,
-        op,
-        sga,
-        net,
-        assets,
-        equity,
-        perRev,
-        perOp,
-        roa,
-        roe,
+        name: r.corp_name,
+        value: v ?? 0,
+        isNull: v == null,
+        isHanwha: isHanwha(r.corp_name),
+        fill: isHanwha(r.corp_name) ? HANWHA_COLOR : COLORS[i % COLORS.length],
       }
     })
-  }, [boardRows, headByCode, unit, corpByCode])
+  }, [sortedRows, metricKey, showCurrentOnly, unit])
 
-  const loadDetailLines = useCallback(async () => {
-    if (!detailCorp) return
-    setLoadingDetail(true)
-    setDetailError('')
-    setDetailInfo('')
-    try {
-      const q = new URLSearchParams({
-        corp_code: detailCorp,
-        year: String(year),
-        reprt,
-        fs_div: fsDiv,
-      })
-      if (detailSj !== 'ALL') q.set('sj_div', detailSj)
-      const res = await fetch(`/api/dart/fnltt-rows?` + q.toString())
-      const json = (await res.json()) as { ok?: boolean; rows?: typeof detailRows; error?: string }
-      if (!res.ok || !json.ok) throw new Error(json.error ?? '원장 조회 실패')
-      const list = json.rows ?? []
-      setDetailRows(list)
-      if (list.length === 0) {
-        setDetailInfo(
-          '해당 조건에 dart_fnltt 원장이 없습니다. 연도·보고서·OFS/CFS가 맞는지 확인하거나, 상단에서 "분석 전 OpenDART 동기화"를 켠 뒤 분석하거나 DART BS/PL RAW에서 적재하세요.',
-        )
+  const groupBar = useMemo(() => {
+    const groups: { key: 'large' | 'mid' | 'peer'; name: string }[] = [
+      { key: 'large', name: '대형사' },
+      { key: 'mid', name: '중소형사' },
+      { key: 'peer', name: '피어사' },
+    ]
+    return groups.map((g, i) => {
+      const gRows = getGroupRows(visibleRows, g.key)
+      const values = gRows
+        .map((r) => pickAxis(r, metricKey, showCurrentOnly, unit))
+        .filter((v): v is number => v != null && Number.isFinite(v))
+      const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
+      return {
+        name: g.name,
+        value: avg ?? 0,
+        isNull: avg == null,
+        fill: COLORS[i % COLORS.length],
       }
-    } catch (e: unknown) {
-      setDetailRows([])
-      setDetailError(e instanceof Error ? e.message : '오류')
-    } finally {
-      setLoadingDetail(false)
+    })
+  }, [visibleRows, metricKey, showCurrentOnly, unit])
+
+  const scatter = useMemo(() => {
+    const out: { name: string; x: number; y: number; isHanwha: boolean }[] = []
+    for (const r of visibleRows) {
+      const x = pickAxis(r, axisX, showCurrentOnly, unit)
+      const y = pickAxis(r, axisY, showCurrentOnly, unit)
+      if (x == null || y == null || !Number.isFinite(x) || !Number.isFinite(y)) continue
+      out.push({ name: r.corp_name, x, y, isHanwha: isHanwha(r.corp_name) })
     }
-  }, [detailCorp, year, reprt, fsDiv, detailSj])
+    return out
+  }, [visibleRows, axisX, axisY, showCurrentOnly, unit])
 
-  const filteredDetailRows = useMemo(() => {
-    const s = detailQuery.trim().toLowerCase()
-    if (!s) return detailRows
-    return detailRows.filter((r) => {
-      const nm = (r.account_nm ?? '').toLowerCase()
-      const id = (r.account_id ?? '').toLowerCase()
-      const ck = (r.canon_key ?? '').toLowerCase()
-      return nm.includes(s) || id.includes(s) || ck.includes(s)
-    })
-  }, [detailRows, detailQuery])
+  const axisOptions = useMemo(() => {
+    const fromMetric = bundle ? METRICS.map((k) => ({ key: k as AxisKey, label: bundle.metricLabels[k] })) : []
+    return [
+      ...fromMetric,
+      { key: 'headcount' as AxisKey, label: '임직원 수' },
+      { key: 'roe' as AxisKey, label: 'ROE(%)' },
+      { key: 'cir' as AxisKey, label: 'CIR(%)' },
+      { key: 'productivity' as AxisKey, label: '인당생산성(원)' },
+    ]
+  }, [bundle])
 
   const exportExcel = () => {
-    const unitLabel = UNITS.find((u) => u.value === unit)?.label ?? '원'
-    const meta: (string | number | boolean)[][] = [
-      ['연도', year],
+    if (!bundle) return
+    const wb = XLSX.utils.book_new()
+    const meta = [
+      ['연도', bundle.year],
       ['보고서', REPRTS.find((r) => r.code === reprt)?.name ?? reprt],
-      ['재무제표구분', fsDiv],
-      ['단위(금액)', unitLabel],
-      ['당기만 보기', showCurrentOnly],
+      ['재무구분', bundle.fs_div],
+      ['금액 단위', unitLabel],
+      ['PL 시트', bundle.sheets.cis],
+      ['BS 시트', bundle.sheets.bs],
     ]
-    const table = tableRows.map((r) => {
+    const data = visibleRows.map((r) => {
       const row: Record<string, string | number> = {
-        회사: r.corp_name,
-        임직원수: r.headcount ?? '',
-        [`매출액_당기(${unitLabel})`]: round2(r.rev.th),
-        [`영업이익_당기(${unitLabel})`]: round2(r.op.th),
-        [`판매비와관리비_당기(${unitLabel})`]: round2(r.sga.th),
-        [`당기순이익_당기(${unitLabel})`]: round2(r.net.th),
-        [`자산총계_당기(${unitLabel})`]: round2(r.assets.th),
-        [`자본총계_당기(${unitLabel})`]: round2(r.equity.th),
-        '인당 매출(원)': r.perRev == null ? '' : round2(r.perRev),
-        '인당 영업이익(원)': r.perOp == null ? '' : round2(r.perOp),
-        ROA: r.roa == null ? '' : round2(r.roa * 100),
-        ROE: r.roe == null ? '' : round2(r.roe * 100),
+        corp_code: r.corp_code,
+        corp_name: r.corp_name,
+        group: formatDartCorpLabel(r.tier, r.is_peer),
+        임직원: r.headcount ?? '',
+        ROE: r.ratio.roe == null ? '' : roundInt(r.ratio.roe * 100),
+        CIR: r.ratio.cir == null ? '' : roundInt(r.ratio.cir * 100),
+        인당생산성: r.ratio.productivity == null ? '' : roundInt(r.ratio.productivity),
       }
-      if (!showCurrentOnly) {
-        row[`매출액_전기(${unitLabel})`] = round2(r.rev.fr)
-        row[`영업이익_전기(${unitLabel})`] = round2(r.op.fr)
-        row[`판매비와관리비_전기(${unitLabel})`] = round2(r.sga.fr)
-        row[`당기순이익_전기(${unitLabel})`] = round2(r.net.fr)
-        row[`자산총계_전기(${unitLabel})`] = round2(r.assets.fr)
-        row[`자본총계_전기(${unitLabel})`] = round2(r.equity.fr)
+      for (const k of METRICS) {
+        const label = bundle.metricLabels[k]
+        row[`${label}_당기(${unitLabel})`] = num(r.th[k], unit) == null ? '' : roundInt(num(r.th[k], unit)!)
+        if (!showCurrentOnly) row[`${label}_전기(${unitLabel})`] = num(r.fr[k], unit) == null ? '' : roundInt(num(r.fr[k], unit)!)
       }
       return row
     })
-    const wb = XLSX.utils.book_new()
-    const wsMeta = XLSX.utils.aoa_to_sheet(meta)
-    const wsData = XLSX.utils.json_to_sheet(table)
-    XLSX.utils.book_append_sheet(wb, wsMeta, '조건')
-    XLSX.utils.book_append_sheet(wb, wsData, '지표')
-    XLSX.writeFile(wb, `DART_증권사지표_${year}_${fsDiv}.xlsx`)
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(meta), '조건')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), '비교')
+    XLSX.writeFile(wb, `DART_Analysis_${bundle.year}_${bundle.fs_div}.xlsx`)
   }
 
-  const allSelected = selectedCorps.length === corps.length && corps.length > 0
-  const toggleAll = () => {
-    allSelected ? setSelectedCorps([]) : setSelectedCorps(corps.map((c) => c.corp_code))
+  const allSelected = corps.length > 0 && selectedCorps.length === corps.length
+  const toggleCorp = (code: string, on: boolean) => {
+    setSelectedCorps((prev) => (on ? Array.from(new Set([...prev, code])) : prev.filter((c) => c !== code)))
   }
-  const toggleCorp = (code: string, checked: boolean) => {
-    setSelectedCorps((prev) => (checked ? Array.from(new Set([...prev, code])) : prev.filter((c) => c !== code)))
-  }
-
-  const ctrlCls =
-    'h-10 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-[var(--fw-text)] focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-200'
 
   return (
-    <div className="space-y-4 text-[var(--fw-text)] md:space-y-5">
-      <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm md:p-4">
-        <p className="text-[13px] text-zinc-600 leading-relaxed mb-3">
-          <strong className="font-semibold text-zinc-800">손익·재무 지표</strong>는 DB{' '}
-          <code className="text-[12px] bg-zinc-100 px-1 rounded">dart_fnltt</code>에 저장된 원장을 표준 계정으로 묶어 집계합니다(별도 OpenDART 호출 없음).{' '}
-          <strong className="font-semibold text-zinc-800">인당 매출·인당 영업이익·ROA·ROE</strong> 등은 그 금액과 임직원 수(empSttus)로 계산합니다. 데이터가 없으면 아래에서
-          &quot;분석 전 OpenDART 동기화&quot;를 켜거나 DART BS/PL RAW 등으로 먼저 <code className="text-[12px] bg-zinc-100 px-1 rounded">dart_fnltt</code>를
-          채우세요. 대상 회사는 <strong className="font-semibold text-zinc-800">CORP registration</strong>에서 관리합니다.
-        </p>
-        <p className="text-[12px] text-zinc-500 leading-relaxed mb-3 border-l-2 border-zinc-200 pl-3">
-          전자공시 재무 데이터는 원천적으로 <strong className="text-zinc-700">XBRL</strong> 태그가 붙은 정기보고서에서 옵니다. OpenDART{' '}
-          <code className="text-[11px] bg-zinc-100 px-1 rounded">fnlttSinglAcnt</code> /{' '}
-          <code className="text-[11px] bg-zinc-100 px-1 rounded">fnlttMultiAcnt</code> API는 그 항목을 JSON으로 내려주며, 본 화면·DB에는 계정명·IFRS
-          계정코드(<code className="text-[11px]">account_id</code>)·금액 필드가 저장됩니다. 즉 <strong className="text-zinc-700">공시·API 기준 구조화 데이터</strong>이지,
-          이 앱 안에서 XBRL 인스턴스 문서를 직접 파싱하지는 않습니다.
-        </p>
-        <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 items-end">
-          <div className="flex flex-col gap-1 min-w-0">
-            <label className="text-[clamp(11px,0.9vw,12px)] text-zinc-600">연도</label>
-            <input
-              type="number"
-              value={year}
-              onChange={(e) => setYear(parseInt(e.target.value || '0', 10))}
-              className={ctrlCls}
-            />
+    <div className="space-y-5">
+      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <div>
+            <label className="text-xs text-zinc-600">연도</label>
+            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value || 0))} className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 text-sm" />
           </div>
-          <div className="flex flex-col gap-1 min-w-0">
-            <label className="text-[clamp(11px,0.9vw,12px)] text-zinc-600">보고서</label>
-            <select value={reprt} onChange={(e) => setReprt(e.target.value as ReprtCode)} className={ctrlCls}>
+          <div>
+            <label className="text-xs text-zinc-600">보고서</label>
+            <select value={reprt} onChange={(e) => setReprt(e.target.value as ReprtCode)} className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 text-sm">
               {REPRTS.map((r) => (
                 <option key={r.code} value={r.code}>
                   {r.name}
@@ -394,32 +321,16 @@ export default function DartAnalysisPage() {
               ))}
             </select>
           </div>
-          <div className="flex flex-col gap-1 min-w-0">
-            <label className="text-[clamp(11px,0.9vw,12px)] text-zinc-600">재무제표 구분</label>
-            <div className="flex overflow-hidden rounded-md border border-zinc-300">
-              <button
-                type="button"
-                onClick={() => setFsDiv('OFS')}
-                className={`flex-1 h-10 text-[clamp(12px,1.05vw,14px)] ${
-                  fsDiv === 'OFS' ? 'bg-[#ea580c] text-white' : 'bg-white text-zinc-700'
-                }`}
-              >
-                단일(OFS)
-              </button>
-              <button
-                type="button"
-                onClick={() => setFsDiv('CFS')}
-                className={`flex-1 h-10 text-[clamp(12px,1.05vw,14px)] border-l ${
-                  fsDiv === 'CFS' ? 'bg-[#ea580c] text-white' : 'bg-white text-zinc-700'
-                }`}
-              >
-                연결(CFS)
-              </button>
-            </div>
+          <div>
+            <label className="text-xs text-zinc-600">재무구분</label>
+            <select value={fsDiv} onChange={(e) => setFsDiv(e.target.value as FsDiv)} className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 text-sm">
+              <option value="OFS">별도(OFS)</option>
+              <option value="CFS">연결(CFS)</option>
+            </select>
           </div>
-          <div className="flex flex-col gap-1 min-w-0">
-            <label className="text-[clamp(11px,0.9vw,12px)] text-zinc-600">금액 단위</label>
-            <select value={unit} onChange={(e) => setUnit(parseInt(e.target.value, 10))} className={ctrlCls}>
+          <div>
+            <label className="text-xs text-zinc-600">금액 단위</label>
+            <select value={unit} onChange={(e) => setUnit(Number(e.target.value))} className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 text-sm">
               {UNITS.map((u) => (
                 <option key={u.value} value={u.value}>
                   {u.label}
@@ -427,340 +338,243 @@ export default function DartAnalysisPage() {
               ))}
             </select>
           </div>
-          <label className="flex items-center justify-end gap-2 min-w-0 col-span-2 xl:col-span-1">
-            <input
-              type="checkbox"
-              checked={showCurrentOnly}
-              onChange={(e) => setShowCurrentOnly(e.target.checked)}
-              className="h-4 w-4 shrink-0"
-            />
-            <span className="text-[clamp(12px,1.05vw,14px)]">재무 당기만 표시</span>
+          <label className="flex items-center gap-2 pt-6">
+            <input type="checkbox" checked={showCurrentOnly} onChange={(e) => setShowCurrentOnly(e.target.checked)} />
+            <span className="text-sm">당기만 표시</span>
           </label>
-          <label className="flex items-center gap-2 min-w-0 col-span-2 xl:col-span-2">
-            <input
-              type="checkbox"
-              checked={syncBeforeRun}
-              onChange={(e) => setSyncBeforeRun(e.target.checked)}
-              className="h-4 w-4 shrink-0"
-            />
-            <span className="text-[clamp(12px,1.05vw,14px)] text-zinc-700">
-              분석 전 OpenDART 동기화 (fnltt → <code className="text-[11px] bg-zinc-100 px-1 rounded">dart_fnltt</code> 덮어쓰기)
-            </span>
-          </label>
-          <div className="flex flex-wrap gap-2 xl:col-span-1 items-end">
-            <button
-              type="button"
-              onClick={runAnalysis}
-              disabled={selectedCorps.length === 0 || loadingRun}
-              className="h-10 rounded-md bg-[#ea580c] px-4 text-sm text-white hover:bg-[#c2410c] disabled:opacity-50"
-            >
-              {loadingRun ? '분석 중…' : syncBeforeRun ? '동기화 후 분석' : 'dart_fnltt로 분석'}
+          <div className="flex gap-2 pt-5">
+            <button onClick={runAnalysis} disabled={loadingRun || selectedCorps.length === 0} className="h-10 rounded bg-[#ea580c] px-3 text-sm text-white disabled:opacity-50">
+              {loadingRun ? '분석 중…' : '분석 실행'}
             </button>
-            <button
-              type="button"
-              onClick={exportExcel}
-              disabled={tableRows.length === 0}
-              className="h-10 rounded-md border border-zinc-300 bg-white px-4 text-sm hover:border-orange-200 hover:bg-orange-50 disabled:opacity-50"
-            >
+            <button onClick={exportExcel} disabled={!bundle} className="h-10 rounded border border-zinc-300 bg-white px-3 text-sm disabled:opacity-50">
               Excel
             </button>
           </div>
         </div>
+        <p className="mt-3 text-xs text-zinc-500">
+          본 화면은 XBRL 문서를 직접 읽지 않고 <code className="rounded bg-zinc-100 px-1">dart_fnltt</code> 저장 데이터만 사용합니다. 데이터가 없으면 DART BS/PL RAW에서 먼저 적재해 주세요. 회사별 QNAME 조합식은 좌측 메뉴{' '}
+          <strong className="text-zinc-700">CORP Account</strong>에서 설정합니다.
+        </p>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm md:p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h4 className="font-semibold text-[clamp(13px,1.1vw,14px)]">회사 선택</h4>
-          <button
-            type="button"
-            className="h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm hover:border-orange-200 hover:bg-orange-50"
-            onClick={toggleAll}
-          >
+      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold">회사 선택</h3>
+          <button onClick={() => (allSelected ? setSelectedCorps([]) : setSelectedCorps(corps.map((c) => c.corp_code)))} className="rounded border border-zinc-300 px-2 py-1 text-xs">
             {allSelected ? '전체 해제' : '전체 선택'}
           </button>
         </div>
-        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {loadingCorps ? (
-            <div className="col-span-full text-sm text-zinc-500">회사 목록 불러오는 중…</div>
+            <div className="col-span-full text-sm text-zinc-500">회사 목록 로딩 중…</div>
           ) : (
-            corps.map((c) => {
-              const checked = selectedCorps.includes(c.corp_code)
-              return (
-                <label key={c.corp_code} className="flex items-center gap-2 text-[clamp(12px,1.05vw,14px)]">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => toggleCorp(c.corp_code, e.target.checked)}
-                    className="h-4 w-4 shrink-0"
-                  />
-                  <span className="truncate">
-                    {c.corp_name}{' '}
-                    <span className="text-zinc-400 text-[11px]">({formatDartCorpLabel(c.tier, c.is_peer)})</span>
-                  </span>
-                </label>
-              )
-            })
+            corps.map((c) => (
+              <label key={c.corp_code} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={selectedCorps.includes(c.corp_code)} onChange={(e) => toggleCorp(c.corp_code, e.target.checked)} />
+                <span>
+                  {c.corp_name} <span className="text-xs text-zinc-400">({formatDartCorpLabel(c.tier, c.is_peer)})</span>
+                </span>
+              </label>
+            ))
           )}
         </div>
       </div>
 
-      {runError ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{runError}</div>
-      ) : null}
+      {runError ? <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{runError}</div> : null}
 
-      <div className="rounded-lg border border-zinc-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex flex-wrap gap-1 px-2 py-2 border-b border-zinc-100 bg-zinc-50/90">
-          {(
-            [
-              { id: 'dashboard' as const, label: '대시보드' },
-              { id: 'table' as const, label: '상세 표' },
-              { id: 'ledger' as const, label: '계정 원장' },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setMainTab(t.id)}
-              className={[
-                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                mainTab === t.id ? 'bg-[#ea580c] text-white' : 'bg-white text-zinc-700 border border-zinc-200 hover:bg-orange-50',
-              ].join(' ')}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {mainTab === 'dashboard' ? (
-          <div className="p-3 md:p-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-semibold text-[clamp(13px,1.1vw,14px)] text-zinc-900">
-                그룹·회사별 시각화 · {year}년 · {REPRTS.find((r) => r.code === reprt)?.name} · {fsDiv}
-              </h3>
-              <p className="text-[11px] text-zinc-500 max-w-xl">
-                대형·중소형·피어(중소형 중 피어 표시)별 막대 그래프로 지표를 비교합니다. 회사별 상세에서 손익·인당·ROA/ROE를 함께 봅니다.
-              </p>
+      {bundle ? (
+        <>
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 md:p-5">
+            <div className="mt-2 flex flex-wrap gap-3">
+              <div>
+                <label className="text-xs text-zinc-600">비교 지표</label>
+                <select value={metricKey} onChange={(e) => setMetricKey(e.target.value as AxisKey)} className="mt-1 h-10 rounded border border-zinc-300 px-3 text-sm">
+                  {axisOptions.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <DartAnalysisDashboard rows={tableRows} unitLabel={UNITS.find((u) => u.value === unit)?.label ?? '원'} />
-          </div>
-        ) : null}
-
-        {mainTab === 'table' ? (
-          <div className="overflow-auto">
-            <div className="px-3 py-2 border-b border-zinc-100 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-semibold text-[clamp(13px,1.1vw,14px)]">
-                {year}년 · {REPRTS.find((r) => r.code === reprt)?.name} · {fsDiv} · 금액 {UNITS.find((u) => u.value === unit)?.label}
-              </h3>
-              <p className="text-[11px] text-zinc-500">
-                인당 지표·ROA·ROE는 원 단위 금액으로 계산합니다. ROA=당기순이익÷자산총계, ROE=당기순이익÷자본총계.
-              </p>
+            <div className="mt-4 grid gap-5 lg:grid-cols-2">
+              <div className="h-[340px] min-w-0">
+                <h4 className="mb-2 text-sm font-semibold">회사별 비교 · {metricLabel}</h4>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={companyBar} margin={{ top: 8, right: 8, left: 8, bottom: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+                    <XAxis dataKey="name" angle={-30} interval={0} textAnchor="end" height={60} tick={{ fontSize: 10 }} />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(v) => (metricIsPercent ? fmtPercent1(Number(v)) : fmtInt(Number(v)))}
+                    />
+                    <Tooltip
+                      formatter={(v, _, item) => [
+                        item.payload?.isNull ? '—' : metricIsPercent ? fmtPercent1(Number(v)) : fmtInt(Number(v)),
+                        metricLabel,
+                      ]}
+                    />
+                    <Bar dataKey="value">
+                      {companyBar.map((r, i) => (
+                        <Cell key={i} fill={r.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="h-[340px] min-w-0">
+                <h4 className="mb-2 text-sm font-semibold">구분별 평균 비교 · {metricLabel}</h4>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={groupBar} margin={{ top: 8, right: 8, left: 8, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(v) => (metricIsPercent ? fmtPercent1(Number(v)) : fmtInt(Number(v)))}
+                    />
+                    <Tooltip
+                      formatter={(v, _, item) => [
+                        item.payload?.isNull ? '—' : metricIsPercent ? fmtPercent1(Number(v)) : fmtInt(Number(v)),
+                        '평균',
+                      ]}
+                    />
+                    <Bar dataKey="value">
+                      {groupBar.map((r, i) => (
+                        <Cell key={i} fill={r.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            {tableRows.length === 0 ? (
-              <div className="text-sm text-zinc-500 p-8 text-center">
-            &quot;dart_fnltt로 분석&quot;을 눌러 주세요. 선택 연도·보고서·OFS/CFS에 맞는 원장이 없으면 표가 비어 있을 수 있습니다.
           </div>
-            ) : (
-              <>
-                <table className="min-w-[1200px] w-full text-[clamp(11px,0.95vw,13px)]">
-            <thead className="bg-zinc-50 sticky top-0 z-10">
-              <tr>
-                <th className="px-2 py-2 text-left font-semibold border-b">회사</th>
-                <th className="px-2 py-2 text-right font-semibold border-b">임직원</th>
-                {BOARD_KEYS.map((k) => (
-                  <th key={k} className="px-2 py-2 text-right font-semibold border-b whitespace-nowrap">
-                    {labelByKey.get(k) ?? k}
-                    {!showCurrentOnly ? (
-                      <>
-                        <br />
-                        <span className="font-normal text-zinc-500">당기 / 전기</span>
-                      </>
-                    ) : null}
-                  </th>
-                ))}
-                <th className="px-2 py-2 text-right font-semibold border-b">인당 매출(원)</th>
-                <th className="px-2 py-2 text-right font-semibold border-b">인당 영업이익(원)</th>
-                <th className="px-2 py-2 text-right font-semibold border-b">ROA</th>
-                <th className="px-2 py-2 text-right font-semibold border-b">ROE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.map((r) => {
-                const isHw = r.corp_name === HIGHLIGHT_CORP
-                const cells = [
-                  { th: r.rev.th, fr: r.rev.fr },
-                  { th: r.op.th, fr: r.op.fr },
-                  { th: r.sga.th, fr: r.sga.fr },
-                  { th: r.net.th, fr: r.net.fr },
-                  { th: r.assets.th, fr: r.assets.fr },
-                  { th: r.equity.th, fr: r.equity.fr },
-                ]
-                return (
-                  <tr
-                    key={r.corp_code}
-                    className="border-t border-zinc-100"
-                    style={isHw ? { backgroundColor: HIGHLIGHT_ROW } : undefined}
-                  >
-                    <td className="px-2 py-1.5 whitespace-nowrap">{r.corp_name}</td>
-                    <td className="px-2 py-1.5 text-right">
-                      {r.headcount != null ? fmt(r.headcount) : '—'}
-                      {r.empNote && r.headcount == null ? (
-                        <span className="block text-[10px] text-zinc-400">{r.empNote}</span>
-                      ) : null}
-                    </td>
-                    {cells.map((c, i) => {
-                      const delta = c.th - c.fr
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 md:p-5">
+            <h4 className="mb-2 text-sm font-semibold">X/Y 비교 산점도</h4>
+            <div className="mb-3 grid gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs text-zinc-600">X 축</label>
+                <select value={axisX} onChange={(e) => setAxisX(e.target.value as AxisKey)} className="h-10 w-full rounded border border-zinc-300 px-3 text-sm">
+                  {axisOptions.map((o) => (
+                    <option key={`x-${o.key}`} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs text-zinc-600">Y 축</label>
+                <select value={axisY} onChange={(e) => setAxisY(e.target.value as AxisKey)} className="h-10 w-full rounded border border-zinc-300 px-3 text-sm">
+                  {axisOptions.map((o) => (
+                    <option key={`y-${o.key}`} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="h-[360px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 12, right: 12, left: 12, bottom: 12 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+                  <XAxis type="number" dataKey="x" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtInt(Number(v))} />
+                  <YAxis type="number" dataKey="y" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtInt(Number(v))} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.[0]) return null
+                      const p = payload[0].payload as { name: string; x: number; y: number }
+                      const ratio = p.x === 0 ? null : p.y / p.x
                       return (
-                        <td key={i} className="px-2 py-1.5 text-right whitespace-nowrap">
-                          {showCurrentOnly ? (
-                            fmt(round2(c.th))
-                          ) : (
-                            <span>
-                              {fmt(round2(c.th))}
-                              <span className="text-zinc-400"> / </span>
-                              {fmt(round2(c.fr))}
-                              <span className={`block text-[10px] ${signClass(delta)}`}>
-                                Δ {fmt(round2(delta))}
-                              </span>
-                            </span>
-                          )}
+                        <div className="rounded border border-zinc-200 bg-white px-3 py-2 text-xs shadow">
+                          <div className="font-semibold">{p.name}</div>
+                          <div>X: {fmtInt(p.x)}</div>
+                          <div>Y: {fmtInt(p.y)}</div>
+                          {ratio != null ? <div className="text-zinc-500">Y/X: {fmtInt(ratio)}</div> : null}
+                        </div>
+                      )
+                    }}
+                  />
+                  <Scatter
+                    data={scatter}
+                    shape={(props) => {
+                      const p = props as { cx?: number; cy?: number; payload?: { name: string; isHanwha?: boolean } }
+                      const cx = p.cx ?? 0
+                      const cy = p.cy ?? 0
+                      const name = p.payload?.name ?? ''
+                      const highlight = Boolean(p.payload?.isHanwha)
+                      const color = highlight ? HANWHA_COLOR : '#52525b'
+                      return (
+                        <g>
+                          <circle cx={cx} cy={cy} r={highlight ? 6 : 5} fill={color} />
+                          <text
+                            x={cx + 8}
+                            y={cy - 8}
+                            fontSize={11}
+                            fill={color}
+                            fontWeight={highlight ? 700 : 500}
+                          >
+                            {name}
+                          </text>
+                        </g>
+                      )
+                    }}
+                  />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 rounded-lg border border-amber-100 bg-amber-50/60 p-4 text-xs text-zinc-800">
+              <h4 className="mb-2 font-semibold">산점도 추천 조합</h4>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>X=임직원 수, Y=순영업수익: 인당생산성 비교</li>
+                <li>X=자기자본, Y=당기순이익: ROE 감각적으로 비교</li>
+                <li>X=순영업수익, Y=판매와일반관리비: CIR 구조 비교</li>
+                <li>X=순영업수익, Y=영업이익: 영업 레버리지 비교</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="overflow-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+            <table className="min-w-[1200px] w-full text-sm">
+              <thead className="bg-zinc-50 sticky top-0 z-10">
+                <tr>
+                  <th className="px-2 py-2 text-left">회사</th>
+                  <th className="px-2 py-2 text-right">임직원</th>
+                  {METRICS.map((k) => (
+                    <th key={k} className="px-2 py-2 text-right whitespace-nowrap">
+                      {bundle.metricLabels[k]}
+                    </th>
+                  ))}
+                  <th className="px-2 py-2 text-right">ROE(%)</th>
+                  <th className="px-2 py-2 text-right">CIR(%)</th>
+                  <th className="px-2 py-2 text-right">인당생산성(원)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRows.map((r) => (
+                  <tr key={r.corp_code} className="border-t border-zinc-100">
+                    <td className="px-2 py-1.5">
+                      {r.corp_name} <span className="text-xs text-zinc-400">({formatDartCorpLabel(r.tier, r.is_peer)})</span>
+                    </td>
+                    <td className="px-2 py-1.5 text-right">{r.headcount == null ? '—' : r.headcount.toLocaleString()}</td>
+                    {METRICS.map((k) => {
+                      const v = showCurrentOnly ? r.th[k] : (r.th[k] ?? r.fr[k])
+                      return (
+                        <td key={k} className="px-2 py-1.5 text-right">
+                          {num(v, unit) == null ? '—' : fmtInt(num(v, unit)!)}
                         </td>
                       )
                     })}
-                    <td className="px-2 py-1.5 text-right">{r.perRev == null ? '—' : fmt(round2(r.perRev))}</td>
-                    <td className="px-2 py-1.5 text-right">{r.perOp == null ? '—' : fmt(round2(r.perOp))}</td>
-                    <td className="px-2 py-1.5 text-right">{r.roa == null ? '—' : `${fmt(round2(r.roa * 100))}%`}</td>
-                    <td className="px-2 py-1.5 text-right">{r.roe == null ? '—' : `${fmt(round2(r.roe * 100))}%`}</td>
+                    <td className="px-2 py-1.5 text-right">{r.ratio.roe == null ? '—' : fmtPercent1(r.ratio.roe * 100)}</td>
+                    <td className="px-2 py-1.5 text-right">{r.ratio.cir == null ? '—' : fmtPercent1(r.ratio.cir * 100)}</td>
+                    <td className="px-2 py-1.5 text-right">{r.ratio.productivity == null ? '—' : fmtInt(r.ratio.productivity)}</td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-                <div className="px-3 py-2 text-[11px] text-zinc-500 border-t border-zinc-100">
-                  표준 계정 키: {BOARD_KEYS.join(', ')}. 증감(Δ)은 같은 단위 기준 당기−전기입니다.
-                </div>
-              </>
-            )}
-          </div>
-        ) : null}
-
-        {mainTab === 'ledger' ? (
-          <div className="border-t border-zinc-100">
-            <div className="px-3 py-2 border-b border-zinc-100 bg-zinc-50/80">
-              <h3 className="font-semibold text-[clamp(13px,1.1vw,14px)]">계정별 확인 (원장)</h3>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                <code className="text-[10px] bg-white px-1 rounded border border-zinc-200">dart_fnltt</code>에 저장된 행을 회사·표(PL/BS)별로 봅니다. 상단 연도·보고서·OFS/CFS와 동일
-                조건입니다. 행이 없으면 OpenDART 동기화 옵션으로 분석하거나 BS/PL RAW에서 적재한 뒤 불러오세요.
-              </p>
-            </div>
-            <div className="p-3 md:p-4 flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="flex flex-col gap-1 min-w-[180px]">
-              <label className="text-[11px] text-zinc-600">회사</label>
-              <select
-                value={detailCorp}
-                onChange={(e) => setDetailCorp(e.target.value)}
-                className={ctrlCls}
-              >
-                {corps.map((c) => (
-                  <option key={c.corp_code} value={c.corp_code}>
-                    {c.corp_name} · {formatDartCorpLabel(c.tier, c.is_peer)}
-                  </option>
                 ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1 min-w-[140px]">
-              <label className="text-[11px] text-zinc-600">표</label>
-              <select
-                value={detailSj}
-                onChange={(e) => setDetailSj(e.target.value as 'ALL' | 'BS' | 'CIS')}
-                className={ctrlCls}
-              >
-                <option value="ALL">PL+BS 전체</option>
-                <option value="CIS">PL(CIS)만</option>
-                <option value="BS">BS만</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
-              <label className="text-[11px] text-zinc-600">검색 (계정명·IFRS ID·표준키)</label>
-              <input
-                type="text"
-                value={detailQuery}
-                onChange={(e) => setDetailQuery(e.target.value)}
-                placeholder="예: 매출, ifrs-full, PL_REVENUE"
-                className={ctrlCls + ' placeholder:text-[11px]'}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={loadDetailLines}
-              disabled={!detailCorp || loadingDetail}
-              className="h-10 rounded-md bg-zinc-800 px-4 text-sm text-white hover:bg-zinc-900 disabled:opacity-50 shrink-0"
-            >
-              {loadingDetail ? '불러오는 중…' : '원장 불러오기'}
-            </button>
+              </tbody>
+            </table>
           </div>
-          {detailError ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{detailError}</div>
-          ) : null}
-          {detailInfo && detailRows.length === 0 ? (
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">{detailInfo}</div>
-          ) : null}
-          {filteredDetailRows.length === 0 && !loadingDetail && detailRows.length === 0 && !detailInfo ? (
-            <div className="text-sm text-zinc-500 py-6 text-center">원장 불러오기를 눌러 계정 행을 표시합니다.</div>
-          ) : filteredDetailRows.length > 0 || detailRows.length > 0 ? (
-            <div className="overflow-auto max-h-[min(70vh,560px)] rounded-md border border-zinc-100">
-              <table className="min-w-[900px] w-full text-[11px] md:text-[12px]">
-                <thead className="bg-zinc-50 sticky top-0 z-10">
-                  <tr>
-                    <th className="px-2 py-1.5 text-left font-semibold border-b whitespace-nowrap">표</th>
-                    <th className="px-2 py-1.5 text-right font-semibold border-b">순서</th>
-                    <th className="px-2 py-1.5 text-left font-semibold border-b">계정명</th>
-                    <th className="px-2 py-1.5 text-left font-semibold border-b">account_id</th>
-                    <th className="px-2 py-1.5 text-left font-semibold border-b">표준키</th>
-                    <th className="px-2 py-1.5 text-right font-semibold border-b">
-                      당기 ({UNITS.find((u) => u.value === unit)?.label})
-                    </th>
-                    <th className="px-2 py-1.5 text-right font-semibold border-b">
-                      전기 ({UNITS.find((u) => u.value === unit)?.label})
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDetailRows.map((r, idx) => {
-                    const div = unit || 1
-                    const th = (r.thstrm_amount ?? 0) / div
-                    const fr = (r.frmtrm_amount ?? 0) / div
-                    const lab = r.sj_div === 'BS' ? 'BS' : 'PL'
-                    return (
-                      <tr key={`${r.sj_div}-${r.ord}-${r.account_id}-${idx}`} className="border-t border-zinc-100 hover:bg-zinc-50/80">
-                        <td className="px-2 py-1 whitespace-nowrap text-zinc-600">{lab}</td>
-                        <td className="px-2 py-1 text-right text-zinc-500">{r.ord ?? '—'}</td>
-                        <td className="px-2 py-1 max-w-[280px]">{r.account_nm ?? '—'}</td>
-                        <td className="px-2 py-1 font-mono text-[10px] text-zinc-600 break-all max-w-[200px]">
-                          {r.account_id ?? '—'}
-                        </td>
-                        <td className="px-2 py-1 font-mono text-[10px]">{r.canon_key ?? '—'}</td>
-                        <td className="px-2 py-1 text-right whitespace-nowrap">{fmt(round2(th))}</td>
-                        <td className="px-2 py-1 text-right whitespace-nowrap">{fmt(round2(fr))}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-          {detailRows.length > 0 && filteredDetailRows.length === 0 ? (
-            <p className="text-sm text-zinc-500">검색 조건에 맞는 행이 없습니다.</p>
-          ) : null}
-          {detailRows.length > 0 ? (
-            <p className="text-[11px] text-zinc-500">
-              표시 {filteredDetailRows.length}행 / 전체 {detailRows.length}행 · 금액은 상단 &quot;금액 단위&quot;로 나눈 값입니다.
-            </p>
-          ) : null}
-        </div>
-      </div>
-        ) : null}
-      </div>
+
+        </>
+      ) : null}
     </div>
   )
 }

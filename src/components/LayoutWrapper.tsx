@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Table2,
   Building2,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 type NavItem = { name: string; href: string; icon: React.ReactNode }
@@ -52,7 +53,9 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
   // ✅ 상태
   const [menuOpen, setMenuOpen] = useState(false)
   const [newsOpen, setNewsOpen] = useState(pathname.startsWith('/news/alerts'))
-  const [dartOpen, setDartOpen] = useState(pathname.startsWith('/dart-financial-raw'))
+  const [dartOpen, setDartOpen] = useState(
+    pathname.startsWith('/dart-financial-raw') || pathname.startsWith('/dart-analysis/corp-account'),
+  )
   const [displayName, setDisplayName] = useState<string>('')
   const [email, setEmail] = useState<string>('')
   const [loadingProfile, setLoadingProfile] = useState<boolean>(true)
@@ -113,7 +116,9 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
   }, [pathname])
 
   useEffect(() => {
-    if (pathname.startsWith('/dart-financial-raw')) setDartOpen(true)
+    if (pathname.startsWith('/dart-financial-raw') || pathname.startsWith('/dart-analysis/corp-account')) {
+      setDartOpen(true)
+    }
   }, [pathname])
 
   // 이니셜
@@ -299,6 +304,19 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
                                 <span className="font-medium">CORP registration</span>
                               </Link>
                               <Link
+                                href="/dart-analysis/corp-account"
+                                aria-current={pathname.startsWith('/dart-analysis/corp-account') ? 'page' : undefined}
+                                className={[
+                                  'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                  pathname.startsWith('/dart-analysis/corp-account')
+                                    ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                    : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                                ].join(' ')}
+                              >
+                                <SlidersHorizontal className="w-4 h-4" />
+                                <span className="font-medium">CORP Account</span>
+                              </Link>
+                              <Link
                                 href="/dart-financial-raw"
                                 aria-current={pathname === '/dart-financial-raw' ? 'page' : undefined}
                                 className={[
@@ -439,6 +457,20 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
                             >
                               <Building2 className="w-4 h-4" />
                               <span>CORP registration</span>
+                            </Link>
+                            <Link
+                              href="/dart-analysis/corp-account"
+                              onClick={() => setMenuOpen(false)}
+                              aria-current={pathname.startsWith('/dart-analysis/corp-account') ? 'page' : undefined}
+                              className={[
+                                'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                pathname.startsWith('/dart-analysis/corp-account')
+                                  ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                  : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                              ].join(' ')}
+                            >
+                              <SlidersHorizontal className="w-4 h-4" />
+                              <span>CORP Account</span>
                             </Link>
                             <Link
                               href="/dart-financial-raw"
