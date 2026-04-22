@@ -185,7 +185,7 @@ export async function POST(request: Request) {
     }
 
     // ✅ 핵심 수정: 프롬프트에 뉴스를 주입하고 스토리텔링 지시
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
     const prompt = `
       너는 한국 대형 증권사의 전사 기획팀 책임자야.
       단순히 숫자를 읊어주는 수준을 넘어서, '국제 정세, 국내 정책, 주요 이벤트'가 시장 지표에 어떤 영향을 미쳤는지 입체적으로 분석해야 해.

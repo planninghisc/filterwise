@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { marketText, selectedNews } = body;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
 
     // 선택된 뉴스 제목들을 하나의 문자열로 결합
     const newsList = selectedNews.length > 0 
