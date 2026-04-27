@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateContentWithResilience } from '@/lib/geminiGenerate';
 import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
@@ -76,6 +77,41 @@ async function fetchNaverBond3Y(days: number) {
   return result;
 }
 
+/** 네이버 금융 일별 매매기준율 — Yahoo KRW=X 실패·날짜 불일치 시에도 국내 시세 확보 */
+async function fetchNaverUsdKrw(days: number) {
+  const result = new Map<string, { close: number }>();
+  const maxPages = Math.ceil(days / 10) + 3;
+
+  try {
+    for (let page = 1; page <= maxPages; page++) {
+      const res = await fetch(
+        `https://finance.naver.com/marketindex/exchangeDailyQuote.naver?marketindexCd=FX_USDKRW&page=${page}`
+      );
+      const html = await res.text();
+
+      const rowRegex =
+        /<tr[^>]*>\s*<td class="date">\s*([\d]{4}\.[\d]{2}\.[\d]{2})\s*<\/td>\s*<td class="num">\s*([\d,\.]+)\s*<\/td>/g;
+      let match;
+      let count = 0;
+
+      while ((match = rowRegex.exec(html)) !== null) {
+        const dateStr = match[1].replace(/\./g, '-');
+        const val = parseFloat(match[2].replace(/,/g, ''));
+        if (Number.isFinite(val)) {
+          result.set(dateStr, { close: val });
+          count++;
+        }
+      }
+
+      if (count === 0) break;
+    }
+  } catch (e: any) {
+    console.warn('[Naver] USD/KRW 수집 실패:', e.message);
+    apiErrorLogs.push(`USD/KRW수집실패: ${e.message.substring(0, 30)}`);
+  }
+  return result;
+}
+
 export async function POST(request: Request) {
   apiErrorLogs = []; 
   
@@ -101,11 +137,12 @@ export async function POST(request: Request) {
 
     const queryOptions = { period1, period2 };
 
-    const [kospiData, usdKrwData, us10yData, kr3Map] = await Promise.all([
+    const [kospiData, usdKrwData, us10yData, kr3Map, usdNaverMap] = await Promise.all([
       fetchHistorySafe('^KS11', queryOptions),
       fetchHistorySafe('KRW=X', queryOptions),
       fetchHistorySafe('^TNX', queryOptions),
-      fetchNaverBond3Y(fetchRange + 10) 
+      fetchNaverBond3Y(fetchRange + 10),
+      fetchNaverUsdKrw(fetchRange + 15),
     ]);
 
     const debugMsg = `(수집범위: ${fetchRange}일)`;
@@ -122,7 +159,7 @@ export async function POST(request: Request) {
     };
 
     const kospiMap = makeMap(kospiData);
-    const usdMap = makeMap(usdKrwData);
+    const usdYahooMap = makeMap(usdKrwData);
     const us10Map = makeMap(us10yData);
 
     const getValue = (map: Map<string, any>, targetStr: string, field: string = 'close') => {
@@ -135,7 +172,8 @@ export async function POST(request: Request) {
 
     for (const d of datesToFetch) {
       const kospiClose = getValue(kospiMap, d, 'close');
-      const usdClose = getValue(usdMap, d, 'close');
+      const usdClose =
+        getValue(usdNaverMap, d, 'close') ?? getValue(usdYahooMap, d, 'close');
       const us10Close = getValue(us10Map, d, 'close');
       const kr3Close = getValue(kr3Map, d, 'close'); 
 
@@ -185,7 +223,6 @@ export async function POST(request: Request) {
     }
 
     // ✅ 핵심 수정: 프롬프트에 뉴스를 주입하고 스토리텔링 지시
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
     const prompt = `
       너는 한국 대형 증권사의 전사 기획팀 책임자야.
       단순히 숫자를 읊어주는 수준을 넘어서, '국제 정세, 국내 정책, 주요 이벤트'가 시장 지표에 어떤 영향을 미쳤는지 입체적으로 분석해야 해.
@@ -207,8 +244,7 @@ export async function POST(request: Request) {
       마크다운을 쓰지 말고, 평문과 기호(-, 1. 등)만 사용해서 간결하고 전문적인 톤으로 작성해 줘.
     `;
 
-    const result = await model.generateContent(prompt);
-    const aiText = result.response.text();
+    const { text: aiText } = await generateContentWithResilience(genAI, prompt);
 
     if (period === 'daily') latestData.ai_analysis_daily = aiText;
     if (period === 'weekly') latestData.ai_analysis_weekly = aiText;

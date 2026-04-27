@@ -1,6 +1,7 @@
 // src/app/api/weekly-ir/ai/route.ts
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateContentWithResilience } from '@/lib/geminiGenerate';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
 
@@ -8,8 +9,6 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { marketText, selectedNews } = body;
-
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
 
     // 선택된 뉴스 제목들을 하나의 문자열로 결합
     const newsList = selectedNews.length > 0 
@@ -44,8 +43,8 @@ export async function POST(request: Request) {
       }
     `;
 
-    const result = await model.generateContent(prompt);
-    let aiText = result.response.text();
+    const { text: aiTextRaw } = await generateContentWithResilience(genAI, prompt);
+    let aiText = aiTextRaw;
     
     // JSON 파싱 에러 방지 (마크다운 백틱 제거)
     aiText = aiText.replace(/```json/g, '').replace(/```/g, '').trim();

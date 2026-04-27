@@ -72,8 +72,18 @@ export default function NewsAlertPage() {
     const { data: kData } = await supabase.from('alert_keywords').select('*').order('created_at', { ascending: false })
     if (kData) setKeywords(kData as AlertKeyword[])
 
-    const { count } = await supabase.from('telegram_subscribers').select('*', { count: 'exact', head: true }).eq('is_active', true)
-    if (count !== null) setSubCount(count)
+    const countRes = await fetch('/api/telegram/subscribers/count', { cache: 'no-store' })
+    const countJson = await countRes.json().catch(() => ({ ok: false }))
+    if (countRes.ok && typeof countJson.count === 'number') {
+      setSubCount(countJson.count)
+    } else {
+      // Fallback: keep previous behavior if API auth/session is unavailable.
+      const { count } = await supabase
+        .from('telegram_subscribers')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true)
+      if (count !== null) setSubCount(count)
+    }
   }, [supabase])
 
   useEffect(() => { fetchData() }, [fetchData])
