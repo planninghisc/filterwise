@@ -68,8 +68,11 @@ export default function NewsAlertPage() {
   )
 
   const fetchData = useCallback(async () => {
-    const { data: kData } = await supabase.from('alert_keywords').select('*').order('created_at', { ascending: false })
-    if (kData) setKeywords(kData as AlertKeyword[])
+    const keyRes = await fetch('/api/news/alert-keywords', { cache: 'no-store' })
+    const keyJson = await keyRes.json().catch(() => ({ ok: false }))
+    if (keyRes.ok && keyJson.ok && Array.isArray(keyJson.list)) {
+      setKeywords(keyJson.list as AlertKeyword[])
+    }
 
     const countRes = await fetch('/api/telegram/subscribers/count', { cache: 'no-store' })
     const countJson = await countRes.json().catch(() => ({ ok: false }))
@@ -91,24 +94,25 @@ export default function NewsAlertPage() {
   const addKeyword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim()) return
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return alert('관리자 로그인이 필요합니다.')
-
-    const { error } = await supabase.from('alert_keywords').insert({ 
-      keyword: input.trim(), alert_filter: filterInput.trim() || null, created_by: session.user.id 
+    const res = await fetch('/api/news/alert-keywords', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword: input.trim(), alert_filter: filterInput.trim() || null }),
     })
-    
-    if (error) {
-      if (error.code === '23505') alert('이미 등록된 키워드입니다.')
-      else alert('오류: ' + error.message)
-    } else {
-      setInput(''); setFilterInput(''); fetchData()
+    const json = await res.json().catch(() => ({ ok: false, error: '요청 실패' }))
+    if (!res.ok || !json.ok) {
+      if (json.code === '23505') alert('이미 등록된 키워드입니다.')
+      else alert('오류: ' + (json.error || '등록 실패'))
+      return
     }
+    setInput('')
+    setFilterInput('')
+    fetchData()
   }
 
   const deleteKeyword = async (id: string) => {
     if (!confirm('삭제하시겠습니까?')) return
-    await supabase.from('alert_keywords').delete().eq('id', id)
+    await fetch(`/api/news/alert-keywords?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
     fetchData()
   }
 
@@ -117,10 +121,24 @@ export default function NewsAlertPage() {
   }
 
   const saveEdit = async () => {
+    if (!editingId) return alert('수정 대상이 없습니다.')
     if (!editKeyword.trim()) return alert('키워드 필수')
-    const { error } = await supabase.from('alert_keywords').update({ keyword: editKeyword.trim(), alert_filter: editFilter.trim() || null }).eq('id', editingId)
-    if (error) alert('실패: ' + error.message)
-    else { setEditingId(null); fetchData() }
+    const res = await fetch('/api/news/alert-keywords', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editingId,
+        keyword: editKeyword.trim(),
+        alert_filter: editFilter.trim() || null,
+      }),
+    })
+    const json = await res.json().catch(() => ({ ok: false, error: '요청 실패' }))
+    if (!res.ok || !json.ok) {
+      alert('실패: ' + (json.error || '수정 실패'))
+      return
+    }
+    setEditingId(null)
+    fetchData()
   }
 
   const sendAnnouncement = async () => {
