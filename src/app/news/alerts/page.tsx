@@ -58,6 +58,8 @@ export default function NewsAlertPage() {
   // 공지 발송용 State
   const [announcement, setAnnouncement] = useState('')
   const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false)
+  const [startMessageTemplate, setStartMessageTemplate] = useState('')
+  const [savingStartMessage, setSavingStartMessage] = useState(false)
 
   const [subCount, setSubCount] = useState(0)
   const [sendingTest, setSendingTest] = useState(false)
@@ -85,6 +87,13 @@ export default function NewsAlertPage() {
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true)
       if (count !== null) setSubCount(count)
+    }
+
+    const settingsRes = await fetch('/api/telegram/settings', { cache: 'no-store' })
+    const settingsJson = await settingsRes.json().catch(() => ({ ok: false }))
+    if (settingsRes.ok && settingsJson.ok) {
+      const template = String(settingsJson.item?.start_message_template ?? '').trim()
+      if (template) setStartMessageTemplate(template)
     }
   }, [supabase])
 
@@ -166,6 +175,26 @@ export default function NewsAlertPage() {
       alert('오류 발생: ' + e.message)
     }
     setIsSendingAnnouncement(false)
+  }
+
+  const saveStartMessageTemplate = async () => {
+    if (!startMessageTemplate.trim()) return alert('초기 구독 메시지를 입력해주세요.')
+    setSavingStartMessage(true)
+    try {
+      const res = await fetch('/api/telegram/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_message_template: startMessageTemplate }),
+      })
+      const json = await res.json().catch(() => ({ ok: false }))
+      if (!res.ok || !json.ok) {
+        alert(`저장 실패: ${json.error || '알 수 없는 오류'}`)
+        return
+      }
+      alert('초기 구독 메시지를 저장했습니다.')
+    } finally {
+      setSavingStartMessage(false)
+    }
   }
 
   const sendTestBroadcast = async () => {
@@ -286,6 +315,33 @@ export default function NewsAlertPage() {
               ) : (
                 '📢 공지 보내기'
               )}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. /start 초기 구독 메시지 템플릿 */}
+      <section className="pt-6 border-t border-gray-200">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 border-l-4 border-blue-500 pl-3">
+          ✉️ 최초 구독 메시지 템플릿
+        </h2>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6">
+          <p className="mb-3 text-sm font-semibold text-blue-700">
+            * 텔레그램에서 <code>/start</code>를 보낸 사용자에게 발송되는 메시지입니다. (HTML 태그 사용 가능)
+          </p>
+          <textarea
+            value={startMessageTemplate}
+            onChange={(e) => setStartMessageTemplate(e.target.value)}
+            placeholder="최초 구독 메시지를 입력하세요..."
+            className="w-full h-56 p-4 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-3 resize-y bg-white"
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={saveStartMessageTemplate}
+              disabled={savingStartMessage || !startMessageTemplate.trim()}
+              className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+            >
+              {savingStartMessage ? '저장 중...' : '초기 메시지 저장'}
             </button>
           </div>
         </div>
