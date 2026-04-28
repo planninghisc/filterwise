@@ -179,6 +179,11 @@ export default function NewsAlertPage() {
               🗞️ 데일리 요약 보기
             </button>
           </Link>
+          <Link href="/news/telegram-inbox">
+            <button className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100">
+              📨 텔레그램 수신함
+            </button>
+          </Link>
           
           <button 
             onClick={sendTestBroadcast} 
@@ -200,7 +205,7 @@ export default function NewsAlertPage() {
               <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="수집 검색어 (예: 한화투자증권)" className="w-full p-3 border border-gray-300 rounded-xl" />
             </div>
             <div className="flex-1">
-              <input type="text" value={filterInput} onChange={(e) => setFilterInput(e.target.value)} placeholder="알림 조건 (예: 이벤트, 실적)" className="w-full p-3 border border-gray-300 rounded-xl" />
+              <input type="text" value={filterInput} onChange={(e) => setFilterInput(e.target.value)} placeholder="알림 조건 (예: 체감온도, 주말, 포천 = OR / 공백 = AND / | = OR)" className="w-full p-3 border border-gray-300 rounded-xl" />
             </div>
             <button type="submit" className="whitespace-nowrap rounded-xl bg-[#ea580c] px-6 py-3 font-bold text-white hover:bg-[#c2410c]">등록</button>
           </form>

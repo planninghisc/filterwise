@@ -24,24 +24,49 @@ function htmlEscape(s: string) {
     .replace(/>/g, '&gt;')
 }
 
+function normalizeForMatch(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[\s\p{P}\p{S}]+/gu, '')
+}
+
 function matchesAlertFilter(article: { title?: string | null; content?: string | null }, filter: string | null): boolean {
   const raw = (filter ?? '').trim()
   if (!raw) return true
-  const hay = `${article.title ?? ''}\n${article.content ?? ''}`.toLowerCase()
+  const hayRaw = `${article.title ?? ''}\n${article.content ?? ''}`.toLowerCase()
+  const hayNorm = normalizeForMatch(hayRaw)
+  const hasTerm = (term: string) => {
+    const t = term.trim().toLowerCase()
+    if (!t) return false
+    if (hayRaw.includes(t)) return true
+    const tNorm = normalizeForMatch(t)
+    return tNorm.length > 0 && hayNorm.includes(tNorm)
+  }
+
   if (raw.includes('|')) {
     const anyTerms = raw
       .split('|')
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean)
     if (anyTerms.length === 0) return true
-    return anyTerms.some((t) => hay.includes(t))
+    return anyTerms.some((t) => hasTerm(t))
   }
+  // Comma-separated input is treated as OR for list-style keyword input.
+  if (raw.includes(',') || raw.includes('，')) {
+    const anyTerms = raw
+      .split(/[，,]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+    if (anyTerms.length === 0) return true
+    return anyTerms.some((t) => hasTerm(t))
+  }
+  // Whitespace-separated terms are treated as AND.
   const allTerms = raw
     .split(/\s+/)
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean)
   if (allTerms.length === 0) return true
-  return allTerms.every((t) => hay.includes(t))
+  return allTerms.every((t) => hasTerm(t))
 }
 
 export async function GET(request: Request) {
@@ -123,7 +148,16 @@ export async function GET(request: Request) {
         if(error) console.error('Insert Error:', error)
       }
 
-      debugLogs.push({ keyword: kw.keyword, alert_filter: kw.alert_filter, fetched: articles.length, new_saved: articlesToSave.length })
+      const newlyMatched = articlesToSave.filter((row) =>
+        matchesAlertFilter({ title: row.title, content: row.content }, kw.alert_filter),
+      ).length
+      debugLogs.push({
+        keyword: kw.keyword,
+        alert_filter: kw.alert_filter,
+        fetched: articles.length,
+        new_saved: articlesToSave.length,
+        matched_for_alert: newlyMatched,
+      })
     }
 
     const uniqueByUrl = new Map<string, (typeof newlySavedAll)[number]>()

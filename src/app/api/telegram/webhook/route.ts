@@ -20,6 +20,12 @@ function normalizeCommand(text: string): '/start' | '/stop' | null {
   return null
 }
 
+function toText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -38,11 +44,12 @@ export async function POST(request: Request) {
       text: update?.message?.text ?? null,
       chat_id: update?.message?.chat?.id ?? null,
     })
-    if (!update.message || !update.message.text) return NextResponse.json({ ok: true })
+    if (!update.message) return NextResponse.json({ ok: true })
 
-    const { chat, text, from } = update.message
+    const { chat, text, caption, from } = update.message
     const chatId = chat.id.toString()
-    const command = normalizeCommand(String(text ?? ''))
+    const textValue = toText(text) ?? toText(caption)
+    const command = textValue ? normalizeCommand(textValue) : null
 
     // 1. /start 명령어가 오면 구독자로 등록
     if (command === '/start') {
@@ -91,6 +98,22 @@ export async function POST(request: Request) {
         await sendMessage(chatId, '⚠️ 알림 중지 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.')
       } else {
         await sendMessage(chatId, '🔕 <b>알림이 중지되었습니다.</b>\n다시 받으려면 <code>/start</code>를 입력하세요.')
+      }
+    }
+    // 3. 일반 메시지는 관리자 수신함에 저장
+    else if (textValue) {
+      const { error } = await supabaseAdmin.from('telegram_inbox').insert({
+        chat_id: chatId,
+        first_name: from?.first_name ?? null,
+        username: from?.username ?? null,
+        text: textValue,
+        is_read: false,
+      })
+      if (error) {
+        console.error('[telegram webhook] inbox insert failed:', error)
+        await sendMessage(chatId, '⚠️ 관리자 전달 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      } else {
+        await sendMessage(chatId, '📩 메시지 확인했습니다. 관리자에게 전달할게요.')
       }
     }
 
