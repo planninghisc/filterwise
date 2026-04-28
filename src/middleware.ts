@@ -2,6 +2,8 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+const PRIVILEGED_NEWS_EMAILS = new Set(['test@hanwha.com', 'admin@hanwha.com'])
+
 /** Pages + edge calls that must work without a logged-in session. */
 function isPublic(req: NextRequest): boolean {
   const { pathname } = req.nextUrl
@@ -32,6 +34,17 @@ function isPublic(req: NextRequest): boolean {
   if (pathname.startsWith('/api/stock/history')) return true
 
   return false
+}
+
+function isRestrictedNewsPath(pathname: string): boolean {
+  return (
+    pathname === '/news/alerts' ||
+    pathname.startsWith('/news/alerts/') ||
+    pathname === '/news/telegram-inbox' ||
+    pathname.startsWith('/news/telegram-inbox/') ||
+    pathname.startsWith('/api/telegram/inbox') ||
+    pathname.startsWith('/api/telegram/reply')
+  )
 }
 
 export async function middleware(req: NextRequest) {
@@ -69,6 +82,17 @@ export async function middleware(req: NextRequest) {
     const url = new URL('/login', origin)
     url.searchParams.set('next', pathname + req.nextUrl.search)
     return NextResponse.redirect(url)
+  }
+
+  if (isRestrictedNewsPath(pathname)) {
+    const email = String(user.email ?? '').trim().toLowerCase()
+    const allowed = PRIVILEGED_NEWS_EMAILS.has(email)
+    if (!allowed) {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 })
+      }
+      return NextResponse.redirect(new URL('/news', origin))
+    }
   }
 
   return res

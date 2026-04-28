@@ -4,7 +4,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import Link from 'next/link' // ✅ Link 컴포넌트 추가
 
 // --- 키워드 시각화 컴포넌트 ---
 const KeywordVisualizer = ({ text }: { text: string }) => {
@@ -167,24 +166,13 @@ export default function NewsAlertPage() {
       {/* 헤더 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
         <div>
-          <h1 className="mb-2 text-2xl font-bold text-[#c2410c]">📢 뉴스 브리핑 센터</h1>
+          <h1 className="mb-2 text-2xl font-bold text-[#c2410c]">📰 뉴스 키워드 관리</h1>
           <p className="text-gray-600">현재 <b>{subCount}명</b>의 구독자가 있습니다.</p>
         </div>
         
         {/* 버튼 그룹 */}
         <div className="flex gap-2">
           {/* ✅ 데일리 요약 페이지 이동 버튼 추가 */}
-          <Link href="/news/daily-summary">
-            <button className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-semibold text-[#c2410c] transition hover:bg-orange-100">
-              🗞️ 데일리 요약 보기
-            </button>
-          </Link>
-          <Link href="/news/telegram-inbox">
-            <button className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100">
-              📨 텔레그램 수신함
-            </button>
-          </Link>
-          
           <button 
             onClick={sendTestBroadcast} 
             disabled={sendingTest || subCount === 0} 

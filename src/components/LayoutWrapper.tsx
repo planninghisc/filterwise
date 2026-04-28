@@ -15,7 +15,6 @@ import {
   Newspaper,
   Settings,
   FileSpreadsheet,
-  Bell,
   LayoutDashboard,
   ChevronDown,
   ChevronRight,
@@ -26,6 +25,7 @@ import {
 
 type NavItem = { name: string; href: string; icon: React.ReactNode }
 type Crumb = { label: string; href?: string; active?: boolean }
+const PRIVILEGED_NEWS_EMAILS = new Set(['test@hanwha.com', 'admin@hanwha.com'])
 
 const navSections: Array<Array<NavItem>> = [
   [
@@ -53,7 +53,7 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
 
   // ✅ 상태
   const [menuOpen, setMenuOpen] = useState(false)
-  const [newsOpen, setNewsOpen] = useState(pathname.startsWith('/news/alerts'))
+  const [newsOpen, setNewsOpen] = useState(pathname.startsWith('/news/'))
   const [dartOpen, setDartOpen] = useState(
     pathname.startsWith('/dart-financial-raw') || pathname.startsWith('/dart-analysis/corp-account'),
   )
@@ -113,7 +113,7 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
   }, [pathname])
 
   useEffect(() => {
-    if (pathname.startsWith('/news/alerts')) setNewsOpen(true)
+    if (pathname.startsWith('/news/')) setNewsOpen(true)
   }, [pathname])
 
   useEffect(() => {
@@ -139,9 +139,14 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
     if (email) return `${email}님 환영합니다!`
     return ''
   }, [displayName, email, loadingProfile])
+  const canAccessRestrictedNewsMenus = useMemo(
+    () => PRIVILEGED_NEWS_EMAILS.has((email || '').trim().toLowerCase()),
+    [email],
+  )
 
   const isActive = (href: string) =>
     pathname === href || (href !== '/' && pathname.startsWith(href + '/'))
+  const isHomePage = pathname === '/'
 
   const breadcrumbs = useMemo<Crumb[]>(() => {
     const exact: Record<string, Crumb[]> = {
@@ -150,11 +155,15 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
       '/news': [{ label: 'News', href: '/news', active: true }],
       '/news/alerts': [
         { label: 'News', href: '/news' },
-        { label: 'News Alert', href: '/news/alerts', active: true },
+        { label: 'News Keyword', href: '/news/alerts', active: true },
       ],
       '/news/daily-summary': [
         { label: 'News', href: '/news' },
-        { label: 'Daily Summary', href: '/news/daily-summary', active: true },
+        { label: 'Daily Briefing(User)', href: '/news/daily-summary', active: true },
+      ],
+      '/news/telegram-inbox': [
+        { label: 'News', href: '/news' },
+        { label: 'Telegram Message', href: '/news/telegram-inbox', active: true },
       ],
       '/dart-analysis': [{ label: 'DART Analysis', href: '/dart-analysis', active: true }],
       '/dart-analysis/corp-account': [
@@ -327,19 +336,48 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
                             )}
                           </div>
                           {it.href === '/news' && newsOpen && (
-                            <Link
-                              href="/news/alerts"
-                              aria-current={isActive('/news/alerts') ? 'page' : undefined}
-                              className={[
-                                'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
-                                isActive('/news/alerts')
-                                  ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
-                                  : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
-                              ].join(' ')}
-                            >
-                              <Bell className="w-4 h-4" />
-                              <span className="font-medium">News Alert</span>
-                            </Link>
+                            <>
+                              <Link
+                                href="/news/daily-summary"
+                                aria-current={isActive('/news/daily-summary') ? 'page' : undefined}
+                                className={[
+                                  'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                  isActive('/news/daily-summary')
+                                    ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                    : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                                ].join(' ')}
+                              >
+                                <span className="font-medium">🗞️ Daily Briefing(User)</span>
+                              </Link>
+                              {canAccessRestrictedNewsMenus && (
+                                <>
+                                  <Link
+                                    href="/news/alerts"
+                                    aria-current={isActive('/news/alerts') ? 'page' : undefined}
+                                    className={[
+                                      'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                      isActive('/news/alerts')
+                                        ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                        : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                                    ].join(' ')}
+                                  >
+                                    <span className="font-medium">📰 News Keyword</span>
+                                  </Link>
+                                  <Link
+                                    href="/news/telegram-inbox"
+                                    aria-current={isActive('/news/telegram-inbox') ? 'page' : undefined}
+                                    className={[
+                                      'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                      isActive('/news/telegram-inbox')
+                                        ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                        : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                                    ].join(' ')}
+                                  >
+                                    <span className="font-medium">✉️ Telegram Message</span>
+                                  </Link>
+                                </>
+                              )}
+                            </>
                           )}
                           {it.href === '/dart-analysis' && dartOpen && (
                             <>
@@ -402,7 +440,7 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
         {/* 본문 */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="mx-auto w-full max-w-7xl">
-            {breadcrumbs.length > 0 ? (
+            {breadcrumbs.length > 0 && !isHomePage ? (
               <div className="mb-4 text-xs text-zinc-500">
                 {breadcrumbs.map((c, i) => (
                   <span key={`${c.label}-${i}`}>
@@ -501,20 +539,51 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
                           )}
                         </div>
                         {it.href === '/news' && newsOpen && (
-                          <Link
-                            href="/news/alerts"
-                            onClick={() => setMenuOpen(false)}
-                            aria-current={isActive('/news/alerts') ? 'page' : undefined}
-                            className={[
-                              'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
-                              isActive('/news/alerts')
-                                ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
-                                : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
-                            ].join(' ')}
-                          >
-                            <Bell className="w-4 h-4" />
-                            <span>News Alert</span>
-                          </Link>
+                          <>
+                            <Link
+                              href="/news/daily-summary"
+                              onClick={() => setMenuOpen(false)}
+                              aria-current={isActive('/news/daily-summary') ? 'page' : undefined}
+                              className={[
+                                'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                isActive('/news/daily-summary')
+                                  ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                  : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                              ].join(' ')}
+                            >
+                              <span>🗞️ Daily Briefing(User)</span>
+                            </Link>
+                            {canAccessRestrictedNewsMenus && (
+                              <>
+                                <Link
+                                  href="/news/alerts"
+                                  onClick={() => setMenuOpen(false)}
+                                  aria-current={isActive('/news/alerts') ? 'page' : undefined}
+                                  className={[
+                                    'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                    isActive('/news/alerts')
+                                      ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                      : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                                  ].join(' ')}
+                                >
+                                  <span>📰 News Keyword</span>
+                                </Link>
+                                <Link
+                                  href="/news/telegram-inbox"
+                                  onClick={() => setMenuOpen(false)}
+                                  aria-current={isActive('/news/telegram-inbox') ? 'page' : undefined}
+                                  className={[
+                                    'ml-4 mt-1 group flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all',
+                                    isActive('/news/telegram-inbox')
+                                      ? 'bg-orange-50 border-orange-200 text-[#c2410c]'
+                                      : 'bg-white border-transparent text-gray-700 hover:bg-orange-50/70 hover:border-orange-200',
+                                  ].join(' ')}
+                                >
+                                  <span>✉️ Telegram Message</span>
+                                </Link>
+                              </>
+                            )}
+                          </>
                         )}
                         {it.href === '/dart-analysis' && dartOpen && (
                           <>

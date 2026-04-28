@@ -43,7 +43,8 @@ async function fetchHistorySafe(symbol: string, options: any) {
     return data || [];
   } catch (error: any) {
     console.warn(`[Yahoo] ${symbol} 실패:`, error.message);
-    apiErrorLogs.push(`${symbol}: ${error.message.substring(0, 30)}`);
+    const msg = String(error?.message ?? 'unknown error').replace(/\s+/g, ' ').trim();
+    apiErrorLogs.push(`${symbol}: ${msg.substring(0, 80)}`);
     return [];
   }
 }
@@ -144,6 +145,12 @@ export async function POST(request: Request) {
       fetchNaverBond3Y(fetchRange + 10),
       fetchNaverUsdKrw(fetchRange + 15),
     ]);
+
+    // KRW=X는 종종 빈 응답/간헐 에러가 있어도 네이버 환율 데이터가 있으면 실질 영향이 없음.
+    // 사용자 경고 문구에서 중복 불안을 줄이기 위해 해당 경고는 제거.
+    if (usdNaverMap.size > 0) {
+      apiErrorLogs = apiErrorLogs.filter((log) => !log.startsWith('KRW=X:'));
+    }
 
     const debugMsg = `(수집범위: ${fetchRange}일)`;
 
