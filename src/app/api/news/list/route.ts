@@ -1,6 +1,7 @@
 // src/app/api/news/list/route.ts
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { addKstCalendarDays, kstDayRangeToPublishedAtFilter, kstTodayYmd } from '@/lib/kstDate'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,11 +30,12 @@ export async function GET(request: Request) {
       const end = `${date}T23:59:59+09:00`
       query = query.gte('published_at', start).lte('published_at', end)
     } else {
-      // 최근 N일
-      const d = parseInt(days || '3', 10)
-      const cutoffDate = new Date()
-      cutoffDate.setDate(cutoffDate.getDate() - d)
-      query = query.gte('published_at', cutoffDate.toISOString())
+      // 최근 N일 — KST 달력일 기준 (daily-summary / trend와 동일)
+      const d = Math.min(Math.max(parseInt(days || '3', 10), 1), 90)
+      const endYmd = kstTodayYmd()
+      const startYmd = addKstCalendarDays(endYmd, -(d - 1))
+      const { gte, lte } = kstDayRangeToPublishedAtFilter(startYmd, endYmd)
+      query = query.gte('published_at', gte).lte('published_at', lte)
     }
 
     // 최대 300개 제한 (성능 고려)

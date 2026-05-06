@@ -62,7 +62,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     // 3) 페이지네이션 수집
-    const rows = await roneFetchAllRows({
+    const { rows } = await roneFetchAllRows({
       STATBL_ID,
       DTACYCLE_CD: 'QY',
       pageSize: 1000,

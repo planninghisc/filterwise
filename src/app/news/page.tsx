@@ -10,6 +10,7 @@ import {
 import {
   ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList,
 } from 'recharts'
+import { kstCalendarYmdFromInstant } from '@/lib/kstDate'
 
 type NewsRow = {
   id: string
@@ -41,10 +42,8 @@ type TrendResp = {
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 function getKSTDateString(dateISO: string | null) {
-    if (!dateISO) return ''
-    const date = new Date(dateISO);
-    const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
-    return kstDate.toISOString().split('T')[0];
+  if (!dateISO) return ''
+  return kstCalendarYmdFromInstant(dateISO)
 }
 
 function hhmm(dateISO: string | null) {
@@ -306,8 +305,8 @@ export default function NewsPage() {
              <div className="group relative">
                 <Info className="w-4 h-4 text-gray-400 cursor-help" />
                 <div className="absolute left-0 bottom-6 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg hidden group-hover:block z-10">
-                    막대(Total)는 검색어와 무관한 전체 기사 수입니다.<br/>
-                    검색어에 해당하는 수는 꺾은선(Line)을 참고하세요.
+                    일자는 데일리 요약과 동일하게 KST(Asia/Seoul) 기준입니다.<br/>
+                    막대(Total)는 해당 날짜에 발행된 기사 전체 수이고, 꺾은선(Line)은 검색어가 제목·본문에 포함된 기사 수입니다.
                 </div>
              </div>
           </div>

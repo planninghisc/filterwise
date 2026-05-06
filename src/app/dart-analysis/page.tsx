@@ -14,7 +14,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { formatDartCorpLabel, mergeDartCorpsFromDb, type MergedDartCorp } from '@/data/dartCorpRows'
+import {
+  DART_SIZE_TIER_LABEL,
+  formatDartCorpLabel,
+  mergeDartCorpsFromDb,
+  type MergedDartCorp,
+} from '@/data/dartCorpRows'
 
 type CorpItem = MergedDartCorp
 type ReprtCode = '11011' | '11014' | '11012' | '11013'
@@ -82,6 +87,12 @@ const METRICS: MetricKey[] = [
 const COLORS = ['#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#27272a', '#78716c', '#6b7280']
 const HANWHA = '한화투자증권'
 const HANWHA_COLOR = '#f97316'
+
+/** X/Y 산점도: 규모별 점 색상 */
+const SCATTER_TIER_FILL: Record<'large' | 'mid', string> = {
+  large: '#2563eb',
+  mid: '#16a34a',
+}
 
 function roundInt(n: number) {
   return Math.round(n)
@@ -246,12 +257,30 @@ export default function DartAnalysisPage() {
   }, [visibleRows, metricKey, showCurrentOnly, unit])
 
   const scatter = useMemo(() => {
-    const out: { name: string; x: number; y: number; isHanwha: boolean }[] = []
+    const out: {
+      name: string
+      x: number
+      y: number
+      tier: 'large' | 'mid'
+      is_peer: boolean
+      isHanwha: boolean
+      fill: string
+    }[] = []
     for (const r of visibleRows) {
       const x = pickAxis(r, axisX, showCurrentOnly, unit)
       const y = pickAxis(r, axisY, showCurrentOnly, unit)
       if (x == null || y == null || !Number.isFinite(x) || !Number.isFinite(y)) continue
-      out.push({ name: r.corp_name, x, y, isHanwha: isHanwha(r.corp_name) })
+      const hw = isHanwha(r.corp_name)
+      const fill = hw ? HANWHA_COLOR : SCATTER_TIER_FILL[r.tier]
+      out.push({
+        name: r.corp_name,
+        x,
+        y,
+        tier: r.tier,
+        is_peer: r.is_peer,
+        isHanwha: hw,
+        fill,
+      })
     }
     return out
   }, [visibleRows, axisX, axisY, showCurrentOnly, unit])
@@ -490,11 +519,18 @@ export default function DartAnalysisPage() {
                   <Tooltip
                     content={({ active, payload }) => {
                       if (!active || !payload?.[0]) return null
-                      const p = payload[0].payload as { name: string; x: number; y: number }
+                      const p = payload[0].payload as {
+                        name: string
+                        x: number
+                        y: number
+                        tier: 'large' | 'mid'
+                        is_peer: boolean
+                      }
                       const ratio = p.x === 0 ? null : p.y / p.x
                       return (
                         <div className="rounded border border-zinc-200 bg-white px-3 py-2 text-xs shadow">
                           <div className="font-semibold">{p.name}</div>
+                          <div className="text-zinc-500">{formatDartCorpLabel(p.tier, p.is_peer)}</div>
                           <div>X: {fmtInt(p.x)}</div>
                           <div>Y: {fmtInt(p.y)}</div>
                           {ratio != null ? <div className="text-zinc-500">Y/X: {fmtInt(ratio)}</div> : null}
@@ -505,12 +541,20 @@ export default function DartAnalysisPage() {
                   <Scatter
                     data={scatter}
                     shape={(props) => {
-                      const p = props as { cx?: number; cy?: number; payload?: { name: string; isHanwha?: boolean } }
+                      const p = props as {
+                        cx?: number
+                        cy?: number
+                        payload?: {
+                          name: string
+                          isHanwha?: boolean
+                          fill?: string
+                        }
+                      }
                       const cx = p.cx ?? 0
                       const cy = p.cy ?? 0
                       const name = p.payload?.name ?? ''
                       const highlight = Boolean(p.payload?.isHanwha)
-                      const color = highlight ? HANWHA_COLOR : '#52525b'
+                      const color = p.payload?.fill ?? SCATTER_TIER_FILL.mid
                       return (
                         <g>
                           <circle cx={cx} cy={cy} r={highlight ? 6 : 5} fill={color} />
@@ -529,6 +573,20 @@ export default function DartAnalysisPage() {
                   />
                 </ScatterChart>
               </ResponsiveContainer>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-600">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block size-2.5 shrink-0 rounded-full" style={{ background: SCATTER_TIER_FILL.large }} />
+                {DART_SIZE_TIER_LABEL.large}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block size-2.5 shrink-0 rounded-full" style={{ background: SCATTER_TIER_FILL.mid }} />
+                {DART_SIZE_TIER_LABEL.mid}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block size-2.5 shrink-0 rounded-full" style={{ background: HANWHA_COLOR }} />
+                {HANWHA} (강조)
+              </span>
             </div>
             <div className="mt-4 rounded-lg border border-amber-100 bg-amber-50/60 p-4 text-xs text-zinc-800">
               <h4 className="mb-2 font-semibold">산점도 추천 조합</h4>

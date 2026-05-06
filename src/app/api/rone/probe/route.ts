@@ -53,7 +53,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'STATBL_ID 환경변수가 없습니다.' }, { status: 500 })
     }
 
-    const rows = await roneFetchAllRows({
+    const { rows } = await roneFetchAllRows({
       STATBL_ID: statbl,
       DTACYCLE_CD: 'QY',
       pageSize: 1000,

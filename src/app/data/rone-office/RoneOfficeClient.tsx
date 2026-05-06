@@ -15,6 +15,28 @@ type Row = {
 
 const TABLE = 'rone_office_index' as const
 
+/** KST 기준 직전 완료 분기 — 신규 분기 통계 미발표 시 기본 수집 분기 착오 방지 */
+function defaultCompletedQuarterKst(): { year: number; q: 1 | 2 | 3 | 4 } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'numeric',
+  }).formatToParts(new Date())
+  const y = Number(parts.find((p) => p.type === 'year')?.value)
+  const m = Number(parts.find((p) => p.type === 'month')?.value)
+  if (!Number.isFinite(y) || !Number.isFinite(m)) {
+    const d = new Date()
+    const cq = Math.ceil((d.getMonth() + 1) / 3)
+    return {
+      year: d.getFullYear(),
+      q: Math.min(4, Math.max(1, cq)) as 1 | 2 | 3 | 4,
+    }
+  }
+  const currentQ = Math.ceil(m / 3) as 1 | 2 | 3 | 4
+  if (currentQ === 1) return { year: y - 1, q: 4 }
+  return { year: y, q: (currentQ - 1) as 1 | 2 | 3 | 4 }
+}
+
 function qMonth(q: number): '03' | '06' | '09' | '12' {
   return ['03', '06', '09', '12'][q - 1] as '03' | '06' | '09' | '12'
 }
@@ -35,8 +57,9 @@ function descFromPeriod(p: string): string {
 export default function RoneOfficeClient(): ReactElement {
   // ----- 수집 -----
   const now = new Date()
-  const [ingYear, setIngYear] = useState<number>(now.getFullYear())
-  const [ingQ, setIngQ] = useState<number>(1)
+  const ingestDefault = useMemo(() => defaultCompletedQuarterKst(), [])
+  const [ingYear, setIngYear] = useState<number>(ingestDefault.year)
+  const [ingQ, setIngQ] = useState<number>(ingestDefault.q)
   const [ingLoading, setIngLoading] = useState(false)
   const [ingResult, setIngResult] = useState<Row[]>([])
   const [showDetails, setShowDetails] = useState(false)
@@ -67,6 +90,71 @@ export default function RoneOfficeClient(): ReactElement {
       })
       const data: { rows?: Row[]; error?: string } = await resp.json()
       if (!resp.ok) throw new Error(data?.error || '수집 실패')
+      setIngResult((data?.rows ?? []).map((r) => ({
+        period: r.period,
+        wrttime_desc: r.wrttime_desc,
+        region_code: r.region_code,
+        region_name: r.region_name,
+        value: r.value,
+      })))
+      setShowDetails(true)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      alert(msg || '수집 실패')
+    } finally {
+      setIngLoading(false)
+    }
+  }
+
+  /** 조회 카드의 시작~끝 분기: R-ONE 1회 수집 후 분기별 매칭·일괄 저장 (최대 48분기) */
+  const ingestRange = async (): Promise<void> => {
+    setIngLoading(true)
+    setShowDetails(false)
+    setIngResult([])
+    try {
+      const resp = await fetch('/api/rone/office-index/ingest', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          range: {
+            startYear,
+            startQ,
+            endYear,
+            endQ,
+          },
+        }),
+      })
+      const data = (await resp.json()) as {
+        rows?: Row[]
+        error?: string
+        info?: {
+          message?: string
+          page1ResultCode?: string
+          page1ResultMessage?: string
+          roneRowCount?: number
+        }
+        perQuarter?: Array<{ year: number; quarter: number; matched: number }>
+        count?: number
+      }
+      if (!resp.ok) throw new Error(data?.error || '수집 실패')
+      const matched = data.perQuarter?.filter((p) => p.matched > 0).length ?? 0
+      const totalQ = data.perQuarter?.length ?? 0
+      const diag = data.info
+      const diagLines =
+        diag &&
+        ((data.count ?? 0) === 0 || matched === 0 || totalQ === 0)
+          ? [
+              diag.message,
+              diag.roneRowCount != null ? `R-ONE 원본 행 수: ${diag.roneRowCount}` : '',
+              diag.page1ResultCode || diag.page1ResultMessage
+                ? `첫 페이지 API: ${[diag.page1ResultCode, diag.page1ResultMessage].filter(Boolean).join(' — ')}`
+                : '',
+            ].filter((s): s is string => Boolean(s && String(s).trim()))
+          : []
+      const diagBlock = diagLines.length ? `\n\n${diagLines.join('\n')}` : ''
+      alert(
+        `기간 일괄 수집 완료: DB 반영 ${data.count ?? 0}행, 분기 중 데이터 매칭 ${matched}/${totalQ}${diagBlock}`,
+      )
       setIngResult((data?.rows ?? []).map((r) => ({
         period: r.period,
         wrttime_desc: r.wrttime_desc,
@@ -145,11 +233,15 @@ export default function RoneOfficeClient(): ReactElement {
       {/* 수집 카드 */}
       <div className="rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-2">
-          <div className="font-semibold whitespace-nowrap">API 수집 (단일 분기)</div>
+          <div className="font-semibold whitespace-nowrap">API 수집</div>
           <div className="text-xs text-gray-500 whitespace-nowrap">DB 테이블: {TABLE}</div>
         </div>
+        <p className="mt-2 text-xs text-gray-600">
+          단일 분기는 아래 연·분기만 수집합니다. 여러 분기는 아래 <b>「기간 일괄 수집」</b>이 조회 카드의 시작~끝 분기를 사용합니다
+          (R-ONE 전체 페이지를 <code>list_total_count</code> 기준으로 가져온 뒤, 각 분기별로 CBD/KBD/YBD만 추립니다).
+        </p>
 
-        <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <label className="text-sm">
             <div className="text-gray-600 mb-1 whitespace-nowrap">연도</div>
             <select
@@ -181,7 +273,17 @@ export default function RoneOfficeClient(): ReactElement {
               disabled={ingLoading}
               className="w-full inline-flex items-center justify-center whitespace-nowrap min-w-[96px] rounded-md bg-black text-white px-4 py-2.5 disabled:opacity-50"
             >
-              {ingLoading ? '수집 중…' : '수집'}
+              {ingLoading ? '수집 중…' : '단일 분기 수집'}
+            </button>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={ingestRange}
+              disabled={ingLoading}
+              className="w-full inline-flex items-center justify-center whitespace-nowrap min-w-[96px] rounded-md bg-[#c2410c] text-white px-4 py-2.5 disabled:opacity-50"
+              title="아래 조회 카드의 시작·끝 연도/분기 범위로 일괄 수집"
+            >
+              {ingLoading ? '수집 중…' : '기간 일괄 수집'}
             </button>
           </div>
           <div className="flex items-end">

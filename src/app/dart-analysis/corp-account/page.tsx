@@ -254,50 +254,75 @@ export default function DartCorpAccountPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 md:p-5 shadow-sm">
+      <div className="space-y-5">
         {loadingCorps ? (
-          <p className="text-sm text-zinc-500">회사 목록 불러오는 중…</p>
+          <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <p className="text-sm text-zinc-500">회사 목록 불러오는 중…</p>
+          </div>
         ) : corps.length === 0 ? (
-          <p className="text-sm text-zinc-500">등록된 회사가 없습니다. CORP registration에서 먼저 추가해 주세요.</p>
+          <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <p className="text-sm text-zinc-500">등록된 회사가 없습니다. CORP registration에서 먼저 추가해 주세요.</p>
+          </div>
         ) : (
           <>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-zinc-900">회사별 조합식</h2>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs text-zinc-600 shrink-0">회사</label>
-                <select
-                  value={editCorpCode}
-                  onChange={(e) => setEditCorpCode(e.target.value)}
-                  className="h-10 min-w-[200px] rounded-md border border-zinc-300 px-3 text-sm"
-                >
-                  {corps.map((c) => (
-                    <option key={c.corp_code} value={c.corp_code}>
-                      {c.corp_name} ({c.corp_code})
-                    </option>
-                  ))}
-                </select>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4 md:p-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-4">
+                <div>
+                  <h2 className="text-base font-semibold text-zinc-900">회사별 조합식</h2>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    지표마다 카드를 나누어 두었습니다. 각 카드에 해당 지표용 QNAME만 입력합니다.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="text-xs font-medium text-zinc-600 shrink-0">편집 회사</label>
+                  <select
+                    value={editCorpCode}
+                    onChange={(e) => setEditCorpCode(e.target.value)}
+                    className="h-10 min-w-[220px] rounded-lg border border-zinc-300 bg-white px-3 text-sm shadow-sm"
+                  >
+                    {corps.map((c) => (
+                      <option key={c.corp_code} value={c.corp_code}>
+                        {c.corp_name} ({c.corp_code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+              <p className="mt-4 text-xs leading-relaxed text-zinc-600">
+                <strong className="text-zinc-800">{corpLabel}</strong> 기준 · 한 줄에 하나씩{' '}
+                <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px]">+ifrs-full_...</code> 또는{' '}
+                <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px]">-ifrs-full_...</code>
+              </p>
             </div>
-            <p className="mb-3 text-xs text-zinc-500">
-              <strong className="text-zinc-700">{corpLabel}</strong> 기준 · 한 줄에 하나씩{' '}
-              <code className="rounded bg-zinc-100 px-1">+ifrs-full_...</code> 또는{' '}
-              <code className="rounded bg-zinc-100 px-1">-ifrs-full_...</code>
-            </p>
-            <div className="grid gap-3 md:grid-cols-2">
-              {METRICS.map((k) => (
-                <div key={k} className="min-w-0">
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">{metricName(k)}</label>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {METRICS.map((k, idx) => (
+                <section
+                  key={k}
+                  className="flex min-w-0 flex-col rounded-xl border border-zinc-200 bg-white p-4 shadow-sm ring-1 ring-zinc-100"
+                >
+                  <div className="mb-3 flex gap-3">
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-xs font-bold tabular-nums text-orange-800 ring-1 ring-orange-100"
+                      aria-hidden
+                    >
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-semibold leading-snug text-zinc-900">{metricName(k)}</h3>
+                      <p className="mt-0.5 text-[11px] text-zinc-500">아래 입력란에 이 지표에 해당하는 계정만 나열합니다.</p>
+                    </div>
+                  </div>
                   <textarea
                     value={formulaText[k]}
                     onChange={(e) => setFormulaText((prev) => ({ ...prev, [k]: e.target.value }))}
-                    className="h-28 w-full rounded-md border border-zinc-300 p-2 font-mono text-xs focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                    className="min-h-[132px] w-full flex-1 rounded-lg border border-zinc-300 bg-zinc-50/40 p-3 font-mono text-[13px] leading-relaxed text-zinc-900 placeholder:text-zinc-400 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
                     placeholder="+ifrs-full_ProfitLossFromOperatingActivities"
                     spellCheck={false}
+                    aria-label={`${metricName(k)} 조합식`}
                   />
-                  <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 p-2">
-                    <div className="mb-1 text-[11px] text-zinc-500">
-                      조회된 계정에서 선택해 빠르게 추가
-                    </div>
+                  <div className="mt-3 border-t border-zinc-100 pt-3">
+                    <div className="mb-2 text-[11px] font-medium text-zinc-600">조회된 계정에서 빠르게 추가</div>
                     <div className="flex flex-wrap items-center gap-2">
                       <select
                         value={quickPickByMetric[k]}
@@ -307,7 +332,7 @@ export default function DartCorpAccountPage() {
                             [k]: e.target.value,
                           }))
                         }
-                        className="h-8 min-w-[220px] max-w-full rounded border border-zinc-300 bg-white px-2 text-xs"
+                        className="h-9 min-w-[200px] max-w-full flex-1 rounded-lg border border-zinc-300 bg-white px-2 text-xs shadow-sm"
                       >
                         <option value="">계정 선택…</option>
                         {accountList.map((a) => (
@@ -320,7 +345,7 @@ export default function DartCorpAccountPage() {
                         type="button"
                         onClick={() => appendFormulaLine(k, 1)}
                         disabled={!quickPickByMetric[k]}
-                        className="h-8 rounded border border-zinc-300 bg-white px-2 text-xs disabled:opacity-50"
+                        className="h-9 shrink-0 rounded-lg border border-zinc-300 bg-white px-3 text-xs font-medium shadow-sm hover:bg-zinc-50 disabled:opacity-50"
                       >
                         + 추가
                       </button>
@@ -328,30 +353,41 @@ export default function DartCorpAccountPage() {
                         type="button"
                         onClick={() => appendFormulaLine(k, -1)}
                         disabled={!quickPickByMetric[k]}
-                        className="h-8 rounded border border-zinc-300 bg-white px-2 text-xs disabled:opacity-50"
+                        className="h-9 shrink-0 rounded-lg border border-zinc-300 bg-white px-3 text-xs font-medium shadow-sm hover:bg-zinc-50 disabled:opacity-50"
                       >
-                        - 추가
+                        − 추가
                       </button>
                     </div>
                   </div>
-                </div>
+                </section>
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
+
+            <div className="rounded-xl border border-zinc-200 bg-orange-50/40 px-4 py-4 shadow-sm md:flex md:flex-wrap md:items-center md:justify-between md:gap-3">
+              <div className="mb-3 md:mb-0">
+                <div className="text-xs font-medium text-zinc-700">6개 지표를 모두 확인한 뒤 저장하세요.</div>
+                {formulaMsg ? (
+                  <div className="mt-1 text-sm text-zinc-700">{formulaMsg}</div>
+                ) : (
+                  <div className="mt-1 text-xs text-zinc-500">저장 시 DB 테이블 dart_analysis_formula에 반영됩니다.</div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={saveFormula}
                 disabled={!editCorpCode || savingFormula}
-                className="h-10 rounded-md bg-[#ea580c] px-4 text-sm font-medium text-white hover:bg-[#c2410c] disabled:opacity-50"
+                className="h-11 shrink-0 rounded-lg bg-[#ea580c] px-6 text-sm font-semibold text-white shadow-md hover:bg-[#c2410c] disabled:opacity-50"
               >
                 {savingFormula ? '저장 중…' : '조합식 저장'}
               </button>
-              {formulaMsg ? <span className="text-sm text-zinc-600">{formulaMsg}</span> : null}
             </div>
 
-            <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50/60 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-zinc-900">dart_fnltt 실제 계정 목록 (회사별)</h3>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4 md:p-5 shadow-sm">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-900">dart_fnltt 실제 계정 목록</h3>
+                  <p className="mt-0.5 text-xs text-zinc-500">위 조합식 편집과 별도 영역입니다. 선택 회사 기준으로 조회합니다.</p>
+                </div>
                 <button
                   type="button"
                   onClick={loadFnlttAccounts}

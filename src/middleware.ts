@@ -30,6 +30,10 @@ function isPublic(req: NextRequest): boolean {
   // External schedulers (Bearer CRON_SECRET checked inside the route)
   if (pathname.startsWith('/api/cron/')) return true
 
+  // KOSIS 적재: ingest/cron이 같은 오리진으로 서버 fetch 할 때 브라우저 세션 쿠키가 없음.
+  // 라우트 내부에서 NEWS_CRON_SECRET(또는 dev localhost)으로 이미 검증함.
+  if (pathname === '/api/kosis/import') return true
+
   // Public briefing helper (used by /news/daily-summary without login)
   if (pathname.startsWith('/api/stock/history')) return true
 

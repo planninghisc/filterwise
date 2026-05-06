@@ -111,6 +111,11 @@ export async function GET(req: Request) {
       }, { status: 400 })
     }
 
+    const cronSecret = process.env.NEWS_CRON_SECRET?.trim()
+    if (!cronSecret) {
+      return NextResponse.json({ ok: false, error: 'Missing NEWS_CRON_SECRET' }, { status: 500 })
+    }
+
     // 6) 각 데이터셋을 내부 import 라우트로 호출
     const results = await Promise.allSettled(
       datasets.map(async (d) => {
@@ -131,7 +136,10 @@ export async function GET(req: Request) {
           importUrl.searchParams.set(k, v)
         }
 
-        const res = await fetch(importUrl.toString(), { cache: 'no-store' })
+        const res = await fetch(importUrl.toString(), {
+          cache: 'no-store',
+          headers: { Accept: 'application/json', 'X-Job-Secret': cronSecret },
+        })
         const json = await res.json().catch(() => ({ ok: false, error: 'parse-failed' }))
         return {
           dataset: d.name,
