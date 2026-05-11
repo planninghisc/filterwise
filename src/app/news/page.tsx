@@ -396,15 +396,15 @@ export default function NewsPage() {
                         
                         {/* 🟣 Manual Research 배지 */}
                         {isManualResearch && (
-                            <span className="flex items-center gap-0.5 bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded font-bold border border-purple-100">
-                                <CheckCircle className="w-3 h-3" /> Manual
+                            <span className="inline-flex items-center gap-0.5 whitespace-nowrap rounded border border-purple-100 bg-purple-50 px-1.5 py-0.5 text-[11px] font-bold text-purple-600 sm:text-xs">
+                                <CheckCircle className="h-3 w-3 shrink-0" /> 리서치자료(수동)
                             </span>
                         )}
 
                         {/* 🔵 Auto Research 배지 */}
                         {isAuto && (
-                            <span className="flex items-center gap-0.5 rounded border border-orange-100 bg-orange-50 px-1.5 py-0.5 font-bold text-[#ea580c]">
-                                <FileText className="w-3 h-3" /> Auto
+                            <span className="inline-flex items-center gap-0.5 whitespace-nowrap rounded border border-orange-100 bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-[#ea580c] sm:text-xs">
+                                <FileText className="h-3 w-3 shrink-0" /> 리서치자료(자동)
                             </span>
                         )}
                         
