@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Lock, User } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { supabase } from '@/lib/supabaseClient'
+import LoginWaveBackground from './LoginWaveBackground'
 
 const easeOut = [0.22, 1, 0.36, 1] as const
 
@@ -15,7 +16,15 @@ const container = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.06 },
+    transition: { staggerChildren: 0.05, delayChildren: 0 },
+  },
+}
+
+/** 제목 영역: 부모는 페이드 없이 바로 보이게 → 폰트만 스왑되면 됨 */
+const containerHeader = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.05, delayChildren: 0 },
   },
 }
 
@@ -25,6 +34,16 @@ const item = {
     opacity: 1,
     y: 0,
     transition: { duration: 0.5, ease: easeOut },
+  },
+}
+
+/** 제목은 폰트 스왑과 겹치지 않게 투명도 애니메이션 없음 (FOUT 완화) */
+const itemTitle = {
+  hidden: { opacity: 1, y: 10 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.32, ease: easeOut },
   },
 }
 
@@ -92,25 +111,27 @@ export default function LoginPage() {
   const cardMotion = reduceMotion
     ? {}
     : {
-        initial: { opacity: 0, y: 28, scale: 0.98 },
+        initial: { opacity: 1, y: 16, scale: 0.99 },
         animate: { opacity: 1, y: 0, scale: 1 },
-        transition: { duration: 0.55, ease: easeOut },
+        transition: { duration: 0.38, ease: easeOut },
       }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-white">
+      <LoginWaveBackground />
+      <div className="relative z-10 flex w-full items-center justify-center p-4">
       <motion.div
         className="w-full max-w-[380px] rounded-[2rem] bg-white p-8 shadow-xl sm:p-10"
         {...cardMotion}
       >
         <motion.div
           className="mb-8 flex flex-col items-center text-center"
-          variants={reduceMotion ? undefined : container}
+          variants={reduceMotion ? undefined : containerHeader}
           initial={reduceMotion ? false : 'hidden'}
           animate={reduceMotion ? false : 'show'}
         >
           <motion.h1
-            variants={reduceMotion ? undefined : item}
+            variants={reduceMotion ? undefined : itemTitle}
             className="mb-4 font-anchangho text-5xl font-bold text-[#ea580c]"
           >
             FilterWise
@@ -185,6 +206,7 @@ export default function LoginPage() {
           )}
         </motion.form>
       </motion.div>
+      </div>
     </div>
   )
 }

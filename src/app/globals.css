@@ -32,7 +32,8 @@
   src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2402_1@1.0/KCC-Ahnchangho.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
-  font-display: swap;
+  /* swap + root preload: 빠른 로드, 늦게 도착할 때만 짧은 구간에서만 스왑 */
+  font-display: fallback;
 }
 
 .font-anchangho {

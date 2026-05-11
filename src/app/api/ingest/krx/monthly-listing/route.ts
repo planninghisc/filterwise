@@ -2,6 +2,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import {
+  appendCookiesFromResponse,
+  KRX_REFERER_OUTER_LOADER,
+  mergeCookieParts,
+  resolveKrxJsonCookieHeader,
+} from '@/lib/krxDataAuth'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 /**
@@ -16,6 +22,13 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
  * Query 예:
  *   /api/ingest/krx/monthly-listing?year=2025&startYm=2025-01&endYm=2025-12
  *   [&debug=1][&inspect=1]
+ *
+ * KRX 인증(2026년 이후 비로그인 시 LOGOUT 빈번):
+ *   KRX_ID + KRX_PW — data.krx.co.kr 로그인 후 자동 쿠키 (pykrx와 동일 엔드포인트)
+ *   또는 KRX_MBR_ID + KRX_PW
+ *   KRX_COOKIE — 수동으로 복사한 쿠키 문자열
+ *   KRX_REFERER — 미설정 시: 로그인·수동쿠키면 outerLoader, 아니면 MDCEASY004.jsp
+ *   KRX_USER_AGENT, KRX_WARM_SESSION=0 (비인증일 때만 EASY 선GET)
  *
  * DB 테이블: public.krx_monthly_listing_stats (UNIQUE(prd_de, market))
  */
@@ -36,7 +49,15 @@ type ParsedRow = {
   src_url: string
 }
 
-const UA = 'Mozilla/5.0 (compatible; miniMIS/1.0)'
+/** KRX는 비브라우저·잘못된 Referer에서 `LOGOUT` 등 비JSON 응답을 자주 반환함 */
+const UA =
+  process.env.KRX_USER_AGENT?.trim() ||
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+/** EASY 신규상장 추이(월) 화면 — MDI(로그인) 말고 이 URL을 Referer로 쓰는 편이 안정적 */
+const KRX_REFERER_EASY =
+  process.env.KRX_REFERER?.trim() ||
+  'https://data.krx.co.kr/contents/MDC/EASY/main/MDCEASY004.jsp'
+const KRX_EASY_PAGE = 'https://data.krx.co.kr/contents/MDC/EASY/main/MDCEASY004.jsp'
 const KRX_JSON_BASE =
   process.env.KRX_JSON_BASE ?? 'https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd'
 const DEFAULT_BLD = process.env.KRX_BLD_MDC03010203 ?? 'dbms/MDC/EASY/main/MDCEASY00401'
@@ -123,21 +144,100 @@ type KrxJsonAny = {
   [k: string]: unknown
 }
 
+function buildKrxBrowserHeaders(cookieHeader: string | undefined, referer: string) {
+  const h: Record<string, string> = {
+    'User-Agent': UA,
+    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    Accept: 'application/json, text/javascript, */*; q=0.01',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    Origin: 'https://data.krx.co.kr',
+    Referer: referer,
+    'X-Requested-With': 'XMLHttpRequest',
+  }
+  if (cookieHeader) h.Cookie = cookieHeader
+  return h
+}
+
 async function fetchKrx(formObj: Record<string, string>) {
+  const auth = await resolveKrxJsonCookieHeader()
+  if (auth.loginError) {
+    return {
+      ok: false as const,
+      status: 401,
+      error: 'KRX_LOGIN_FAILED',
+      contentType: '',
+      rawText: auth.loginError,
+    }
+  }
+
+  const cookieParts: string[] = []
+  if (auth.cookie) {
+    for (const chunk of auth.cookie.split(';')) {
+      const t = chunk.trim()
+      if (t) cookieParts.push(t)
+    }
+  }
+
+  const warmGuest =
+    !auth.cookie &&
+    process.env.KRX_WARM_SESSION !== '0' &&
+    process.env.KRX_WARM_SESSION !== 'false' &&
+    process.env.KRX_WARM_SESSION !== 'off'
+
+  if (warmGuest) {
+    try {
+      const warmRes = await fetch(KRX_EASY_PAGE, {
+        method: 'GET',
+        headers: {
+          'User-Agent': UA,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'ko-KR,ko;q=0.9',
+          Referer: 'https://data.krx.co.kr/',
+        },
+        cache: 'no-store',
+      })
+      appendCookiesFromResponse(cookieParts, warmRes)
+    } catch {
+      /* 워밍 실패해도 본 요청은 시도 */
+    }
+  }
+
+  const cookieHeader =
+    cookieParts.length > 0 ? mergeCookieParts(cookieParts) : auth.cookie || undefined
+
+  const referer = auth.useAuthReferer
+    ? process.env.KRX_REFERER?.trim() || KRX_REFERER_OUTER_LOADER
+    : KRX_REFERER_EASY
+
   const res = await fetch(KRX_JSON_BASE, {
     method: 'POST',
-    headers: {
-      'User-Agent': UA,
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      Accept: 'application/json, text/plain, */*',
-      Origin: 'https://data.krx.co.kr',
-      Referer: 'https://data.krx.co.kr/',
-    },
+    headers: buildKrxBrowserHeaders(cookieHeader, referer),
     body: new URLSearchParams(formObj).toString(),
     cache: 'no-store',
   })
   const contentType = res.headers.get('content-type') ?? ''
-  const text = await res.text()
+  const textRaw = await res.text()
+  const text = textRaw.replace(/^\uFEFF/, '')
+  const trimmed = text.trim()
+
+  if (/^LOGOUT$/i.test(trimmed)) {
+    return {
+      ok: false as const,
+      status: res.status,
+      error: 'KRX_LOGOUT',
+      contentType,
+      rawText: trimmed,
+    }
+  }
+  if (/로그인\s*또는\s*회원가입|MDCCOMS001|location\.href.*MDCCOMS/i.test(text)) {
+    return {
+      ok: false as const,
+      status: res.status,
+      error: 'KRX_LOGIN_REQUIRED',
+      contentType,
+      rawText: text.slice(0, 1500),
+    }
+  }
 
   // JSON 우선
   try {
@@ -385,14 +485,23 @@ export async function GET(request: Request) {
 
     const fetched = await fetchKrx(form)
     if (!fetched.ok) {
+      const isSession =
+        fetched.error === 'KRX_LOGOUT' || fetched.error === 'KRX_LOGIN_REQUIRED'
+      const isLoginFail = fetched.error === 'KRX_LOGIN_FAILED'
+      const hint = isLoginFail
+        ? undefined
+        : isSession
+          ? 'KRX는 비로그인 JSON 조회를 막는 경우가 많습니다. 서버에 KRX_ID·KRX_PW(또는 KRX_MBR_ID·KRX_PW)를 설정하거나, 브라우저에서 복사한 KRX_COOKIE를 넣어 주세요. (pykrx auth.py와 동일 로그인)'
+          : undefined
       return NextResponse.json(
         {
           error: fetched.error,
           status: fetched.status,
           contentType: fetched.contentType,
+          hint,
           preview: debug ? fetched.rawText : undefined,
         },
-        { status: fetched.status || 500 },
+        { status: isLoginFail ? 401 : isSession ? 502 : fetched.status || 500 },
       )
     }
 
