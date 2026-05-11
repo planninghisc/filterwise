@@ -7,7 +7,7 @@ import LayoutWrapper from '@/components/LayoutWrapper'
 export default function PageLayoutSelector({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
-  // [수정됨] 
+  // [수정됨]
   // '/news' 전체가 아니라, 오직 '외부 공유용 브리핑 페이지'만 메뉴를 숨깁니다.
   const isPublicPage = pathname === '/news/daily-summary'
 

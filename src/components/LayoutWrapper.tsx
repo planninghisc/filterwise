@@ -204,13 +204,9 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
     return []
   }, [pathname])
 
-  // 로그인 페이지만 중앙 정렬
+  // 로그인: 상위에서 가운데 정렬하면 flex 아이템 높이가 콘텐츠만큼만 잡혀 배경이 전체 화면을 못 채움 → 풀 뷰포트만 보장
   if (isLoginPage) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        {children}
-      </div>
-    )
+    return <div className="min-h-screen min-h-[100dvh] w-full">{children}</div>
   }
 
   return (

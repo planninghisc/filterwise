@@ -37,8 +37,8 @@ export default function LoginSuccessPage() {
   }, [])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-xl shadow text-center">
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="rounded-xl bg-white p-8 text-center shadow-xl">
         <p className="text-lg font-semibold">로그인이 완료되었습니다!</p>
         <p className="text-sm text-gray-600 mt-2">
           {ok ? '메인으로 이동 중…' : '세션 확인 중…'}

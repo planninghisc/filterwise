@@ -6,10 +6,30 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { Lock, User } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { supabase } from '@/lib/supabaseClient'
 
+const easeOut = [0.22, 1, 0.36, 1] as const
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.06 },
+  },
+}
+
+const item = {
+  hidden: { opacity: 0, y: 18 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: easeOut },
+  },
+}
+
 export default function LoginPage() {
-  // ✅ 훅은 최상단에서만/항상 동일 순서로 호출
+  const reduceMotion = useReducedMotion()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -26,7 +46,6 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      // 1) Supabase 로그인 (클라이언트 세션은 SDK가 자동 저장)
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setErrorMsg(error.message)
@@ -38,7 +57,6 @@ export default function LoginPage() {
         return
       }
 
-      // 2) 서버 쿠키 저장 (미들웨어 인증용)
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -54,7 +72,6 @@ export default function LoginPage() {
         return
       }
 
-      // 3) 미들웨어가 넘긴 next(내부 경로만) 또는 세션 확인 페이지
       const nextRaw = new URL(window.location.href).searchParams.get('next')
       const safeNext =
         nextRaw &&
@@ -72,17 +89,51 @@ export default function LoginPage() {
     }
   }
 
+  const cardMotion = reduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 28, scale: 0.98 },
+        animate: { opacity: 1, y: 0, scale: 1 },
+        transition: { duration: 0.55, ease: easeOut },
+      }
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-[380px] rounded-[2rem] bg-white p-8 shadow-xl sm:p-10">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <h1 className="mb-4 font-anchangho text-5xl font-bold text-[#ea580c]">FilterWise</h1>
-          <p className="text-sm font-medium text-gray-500">The power of properly accumulated data</p>
-        </div>
+      <motion.div
+        className="w-full max-w-[380px] rounded-[2rem] bg-white p-8 shadow-xl sm:p-10"
+        {...cardMotion}
+      >
+        <motion.div
+          className="mb-8 flex flex-col items-center text-center"
+          variants={reduceMotion ? undefined : container}
+          initial={reduceMotion ? false : 'hidden'}
+          animate={reduceMotion ? false : 'show'}
+        >
+          <motion.h1
+            variants={reduceMotion ? undefined : item}
+            className="mb-4 font-anchangho text-5xl font-bold text-[#ea580c]"
+          >
+            FilterWise
+          </motion.h1>
+          <motion.p
+            variants={reduceMotion ? undefined : item}
+            className="text-sm font-medium text-gray-500"
+          >
+            The power of properly accumulated data
+          </motion.p>
+        </motion.div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="relative">
-            <label className="sr-only" htmlFor="email">이메일</label>
+        <motion.form
+          onSubmit={handleLogin}
+          className="space-y-4"
+          variants={reduceMotion ? undefined : container}
+          initial={reduceMotion ? false : 'hidden'}
+          animate={reduceMotion ? false : 'show'}
+        >
+          <motion.div variants={reduceMotion ? undefined : item} className="relative">
+            <label className="sr-only" htmlFor="email">
+              이메일
+            </label>
             <User className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <input
               id="email"
@@ -94,10 +145,12 @@ export default function LoginPage() {
               autoComplete="email"
               required
             />
-          </div>
+          </motion.div>
 
-          <div className="relative">
-            <label className="sr-only" htmlFor="password">비밀번호</label>
+          <motion.div variants={reduceMotion ? undefined : item} className="relative">
+            <label className="sr-only" htmlFor="password">
+              비밀번호
+            </label>
             <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <input
               id="password"
@@ -109,9 +162,9 @@ export default function LoginPage() {
               autoComplete="current-password"
               required
             />
-          </div>
+          </motion.div>
 
-          <div className="pt-2">
+          <motion.div variants={reduceMotion ? undefined : item} className="pt-2">
             <button
               type="submit"
               disabled={loading}
@@ -119,15 +172,19 @@ export default function LoginPage() {
             >
               {loading ? '로그인 중...' : 'Login'}
             </button>
-          </div>
+          </motion.div>
 
           {errorMsg && (
-            <p className="pt-1 text-center text-sm text-red-600">
+            <motion.p
+              initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="pt-1 text-center text-sm text-red-600"
+            >
               {errorMsg}
-            </p>
+            </motion.p>
           )}
-        </form>
-      </div>
+        </motion.form>
+      </motion.div>
     </div>
   )
 }
