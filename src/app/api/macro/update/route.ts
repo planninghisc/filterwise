@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { generateContentWithResilience } from '@/lib/geminiGenerate';
+import { macroModelOrderFromId } from '@/lib/macroAiOptions';
+import {
+  applyMacroPromptTemplate,
+  buildMacroPromptCtx,
+  DEFAULT_MACRO_PROMPT_TEMPLATE,
+} from '@/lib/macroAiPromptTemplate';
 import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
@@ -117,6 +123,23 @@ export async function POST(request: Request) {
   apiErrorLogs = []; 
   
   try {
+    let promptTemplateOverride: string | undefined;
+    let geminiModelOptionId: string | undefined;
+    const contentType = request.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      try {
+        const body = await request.json();
+        if (typeof body?.promptTemplate === 'string') {
+          promptTemplateOverride = body.promptTemplate;
+        }
+        if (typeof body?.geminiModelOptionId === 'string') {
+          geminiModelOptionId = body.geminiModelOptionId;
+        }
+      } catch {
+        /* 본문 없음/파싱 실패 시 쿼리만으로 진행 */
+      }
+    }
+
     const { searchParams } = new URL(request.url);
     const targetDate = searchParams.get('date');
     const period = searchParams.get('period') || 'daily';
@@ -229,29 +252,38 @@ export async function POST(request: Request) {
       newsContext = newsData.map(n => `- [${n.category || '뉴스'}] ${n.title} (${n.publisher || '언론사'})`).join('\n');
     }
 
-    // ✅ 핵심 수정: 프롬프트에 뉴스를 주입하고 스토리텔링 지시
-    const prompt = `
-      너는 한국 대형 증권사의 전사 기획팀 책임자야.
-      단순히 숫자를 읊어주는 수준을 넘어서, '국제 정세, 국내 정책, 주요 이벤트'가 시장 지표에 어떤 영향을 미쳤는지 입체적으로 분석해야 해.
+    const periodTyped =
+      period === 'weekly' || period === 'monthly' ? period : 'daily';
 
-      [기간: ${startDate} ~ ${endDate}]
-      
-      [1. 거시경제 지표 변화]
-      - KOSPI 지수: ${previousData.kospi_index}pt -> ${latestData.kospi_index}pt
-      - 원/달러 환율: ${previousData.usd_krw}원 -> ${latestData.usd_krw}원
-      - 국고채 3년물: ${previousData.kr_bond_3y.toFixed(3)}% -> ${latestData.kr_bond_3y.toFixed(3)}%
-      - 미국 10년물: ${previousData.us_bond_10y.toFixed(3)}% -> ${latestData.us_bond_10y.toFixed(3)}%
+    const promptCtx = buildMacroPromptCtx({
+      period: periodTyped,
+      startDate,
+      endDate,
+      previousData: {
+        kospi_index: previousData.kospi_index,
+        usd_krw: previousData.usd_krw,
+        kr_bond_3y: previousData.kr_bond_3y,
+        us_bond_10y: previousData.us_bond_10y,
+      },
+      latestData: {
+        kospi_index: latestData.kospi_index,
+        usd_krw: latestData.usd_krw,
+        kr_bond_3y: latestData.kr_bond_3y,
+        us_bond_10y: latestData.us_bond_10y,
+      },
+      newsContext,
+    });
 
-      [2. 해당 기간 주요 뉴스 및 이벤트 (DB 수집 데이터)]
-      ${newsContext}
+    const template =
+      promptTemplateOverride != null && promptTemplateOverride.trim().length > 0
+        ? promptTemplateOverride
+        : DEFAULT_MACRO_PROMPT_TEMPLATE;
+    const prompt = applyMacroPromptTemplate(template, promptCtx);
 
-      위 지표와 뉴스를 종합하여 다음 두 가지를 작성해 줘:
-      1. ${period === 'daily' ? '일간' : period === 'weekly' ? '주간' : '월간'} 시장 흐름 요약: 단순 수치 나열은 절대 금지! 제공된 '주요 뉴스'에서 드러난 이벤트나 이슈(예: 금리 결정, 미국 지표 발표, 지정학적 리스크, 특정 산업 호재 등)를 지표의 변동과 엮어서 스토리텔링 형식으로 3~4문장 요약해.
-      2. 기획팀 시사점: 이러한 매크로 및 이슈 환경이 증권사 주요 수익원(브로커리지, 채권운용, IB 등)에 미칠 구체적인 영향과 기획팀 차원의 대응 포인트를 도출해 줘 (불릿 포인트 2개).
-      마크다운을 쓰지 말고, 평문과 기호(-, 1. 등)만 사용해서 간결하고 전문적인 톤으로 작성해 줘.
-    `;
-
-    const { text: aiText } = await generateContentWithResilience(genAI, prompt);
+    const modelOrder = macroModelOrderFromId(geminiModelOptionId);
+    const { text: aiText, modelUsed } = await generateContentWithResilience(genAI, prompt, {
+      modelOrder,
+    });
 
     if (period === 'daily') latestData.ai_analysis_daily = aiText;
     if (period === 'weekly') latestData.ai_analysis_weekly = aiText;
@@ -268,7 +300,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       success: true, 
       message: `${period === 'daily' ? '일간' : period === 'weekly' ? '주간' : '월간'} 분석 갱신 완료! ${debugMsg}${warningMsg}`,
-      data: latestData 
+      data: latestData,
+      modelUsed,
     });
 
   } catch (error: any) {

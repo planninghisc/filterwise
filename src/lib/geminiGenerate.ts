@@ -29,11 +29,18 @@ function sleep(ms: number): Promise<void> {
 export async function generateContentWithResilience(
   genAI: GoogleGenerativeAI,
   prompt: string,
-  opts?: { maxAttemptsPerModel?: number; initialDelayMs?: number }
+  opts?: {
+    maxAttemptsPerModel?: number;
+    initialDelayMs?: number;
+    /** 비어 있지 않으면 이 순서로만 호출(단일 모델 고정 가능). 미지정 시 Flash Lite → Flash 폴백. */
+    modelOrder?: string[];
+  }
 ): Promise<{ text: string; modelUsed: string }> {
   const maxAttemptsPerModel = opts?.maxAttemptsPerModel ?? 4;
   const initialDelayMs = opts?.initialDelayMs ?? 750;
-  const modelOrder = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+  const custom = opts?.modelOrder?.filter((m) => typeof m === 'string' && m.trim().length > 0) ?? [];
+  const modelOrder =
+    custom.length > 0 ? custom : [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
   let lastError: unknown;
 
   for (const modelName of modelOrder) {
