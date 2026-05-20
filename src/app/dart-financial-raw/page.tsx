@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { formatDartCorpLabel, mergeDartCorpsFromDb, type MergedDartCorp } from '@/data/dartCorpRows'
+import { DART_REPRT_OPTIONS, getDefaultDartReport, type ReprtCode } from '@/lib/dart'
 import { Table2 } from 'lucide-react'
 
 type CorpItem = MergedDartCorp
@@ -18,17 +19,10 @@ type FnlttLine = {
   currency: string | null
 }
 
-const REPRTS = [
-  { code: '11011', name: '사업보고서(연간)' },
-  { code: '11014', name: '3분기보고서' },
-  { code: '11012', name: '반기보고서' },
-  { code: '11013', name: '1분기보고서' },
-] as const
-
-type ReprtCode = (typeof REPRTS)[number]['code']
-
 type XbrlSheetJson = {
   ok?: boolean
+  source?: 'db' | 'api'
+  count?: number
   rows?: FnlttLine[]
   headcount?: number | null
   headcount_source?: string | null
@@ -50,10 +44,11 @@ function round2(n: number) {
   return Math.round(n * 100) / 100
 }
 
+const DEFAULT_REPORT = getDefaultDartReport()
+
 export default function DartFinancialRawPage() {
-  const defaultYear = new Date().getFullYear() - 1
-  const [year, setYear] = useState(defaultYear)
-  const [reprt, setReprt] = useState<ReprtCode>('11011')
+  const [year, setYear] = useState(DEFAULT_REPORT.year)
+  const [reprt, setReprt] = useState<ReprtCode>(DEFAULT_REPORT.reprt)
   const [unit, setUnit] = useState(100_000_000)
 
   const [corps, setCorps] = useState<CorpItem[]>([])
@@ -137,26 +132,35 @@ export default function DartFinancialRawPage() {
   )
 
   const applySheetJsonToUi = useCallback((fnJson: XbrlSheetJson) => {
+    const fromDb = fnJson.source === 'db'
+    const rowCount = fnJson.count ?? fnJson.rows?.length ?? 0
     setRows(fnJson.rows ?? [])
     setHeadcount(fnJson.headcount ?? null)
     setEmpNote(
       fnJson.headcount != null
-        ? `XBRL source: ${fnJson.headcount_source ?? 'dart-gcd_NumberOfEmployee'}`
-        : 'XBRL에서 인원수 항목을 찾지 못했습니다. (fnltt + XBRL ZIP 검사)',
+        ? fromDb
+          ? (fnJson.headcount_source ?? 'dart_headcount')
+          : `XBRL source: ${fnJson.headcount_source ?? 'dart-gcd_NumberOfEmployee'}`
+        : fromDb
+          ? 'DB(dart_headcount)에 인원수가 없습니다.'
+          : 'XBRL에서 인원수 항목을 찾지 못했습니다. (fnltt + XBRL ZIP 검사)',
     )
     setSaveNote(
-      `DB 저장 완료: dart_fnltt ${fnJson.saved_count ?? 0}행` +
-        (fnJson.headcount_saved ? `, dart_headcount 반영(인원수)` : ''),
+      fromDb
+        ? `DB 조회: dart_fnltt ${rowCount}행 (연도·보고서 일치 데이터, OpenDART 미호출)`
+        : `OpenDART 조회 후 DB 저장: dart_fnltt ${fnJson.saved_count ?? 0}행` +
+            (fnJson.headcount_saved ? `, dart_headcount 반영(인원수)` : ''),
     )
   }, [])
 
   const fetchSheetRows = useCallback(
-    async (cc: string): Promise<XbrlSheetJson> => {
+    async (cc: string, options?: { refresh?: boolean }): Promise<XbrlSheetJson> => {
       const q = new URLSearchParams({
         corp_code: cc,
         year: String(year),
         reprt,
       })
+      if (options?.refresh) q.set('refresh', '1')
       const fnRes = await fetch(`/api/dart/xbrl-sheet-rows?` + q.toString())
       const fnJson = (await fnRes.json()) as XbrlSheetJson
       if (!fnRes.ok || !fnJson.ok) throw new Error(fnJson.error ?? '원장 조회 실패')
@@ -165,29 +169,32 @@ export default function DartFinancialRawPage() {
     [year, reprt],
   )
 
-  const loadAll = useCallback(async () => {
-    if (!corpCode) return
-    setLoading(true)
-    setError('')
-    setBatchSummary(null)
-    try {
-      const fnJson = await fetchSheetRows(corpCode)
-      applySheetJsonToUi(fnJson)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '오류')
-      setRows([])
-      setHeadcount(null)
-      setEmpNote(undefined)
-      setSaveNote(undefined)
-    } finally {
-      setLoading(false)
-    }
-  }, [corpCode, fetchSheetRows, applySheetJsonToUi])
+  const loadAll = useCallback(
+    async (refresh = false) => {
+      if (!corpCode) return
+      setLoading(true)
+      setError('')
+      setBatchSummary(null)
+      try {
+        const fnJson = await fetchSheetRows(corpCode, { refresh })
+        applySheetJsonToUi(fnJson)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : '오류')
+        setRows([])
+        setHeadcount(null)
+        setEmpNote(undefined)
+        setSaveNote(undefined)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [corpCode, fetchSheetRows, applySheetJsonToUi],
+  )
 
   const loadBatch = useCallback(async () => {
     if (corps.length === 0 || batchBusy) return
     const ok = window.confirm(
-      `목록의 ${corps.length}개 회사에 대해 연도 ${year}, 보고서 ${REPRTS.find((r) => r.code === reprt)?.name ?? reprt} 기준으로 순차 조회·저장합니다.\n` +
+      `목록의 ${corps.length}개 회사에 대해 연도 ${year}, 보고서 ${DART_REPRT_OPTIONS.find((r) => r.code === reprt)?.name ?? reprt} 기준으로 순차 조회·저장합니다.\n` +
         `OpenDART 호출이 많아 수 분 이상 걸릴 수 있습니다. 계속할까요?`,
     )
     if (!ok) return
@@ -309,7 +316,8 @@ export default function DartFinancialRawPage() {
             <code className="text-[11px] bg-zinc-100 px-1 rounded">DS320000</code> 에 해당하는 계정행만 표시합니다.
           </p>
           <p className="text-[13px] text-zinc-600 mt-2 leading-relaxed">
-            데이터는 OpenDART 재무제표 API를 조회해 표시하며, 필요하면 임직원(<code className="text-[11px] bg-zinc-100 px-1 rounded">empSttus</code>)을 함께 보여줍니다.
+            같은 회사·연도·보고서 데이터가 <code className="text-[11px] bg-zinc-100 px-1 rounded">dart_fnltt</code>에 있으면 DB에서 바로 표시하고, 없을 때만 OpenDART API로 조회·저장합니다. API로 다시 받으려면{' '}
+            <strong>API 재조회</strong>를 사용하세요.
           </p>
           <p className="mt-2 text-xs text-zinc-500">
             등록 프로세스: <strong>1) CORP registration</strong> 완료 후 이 화면에서 재무 원장행을 적재하고, 다음 단계로{' '}
@@ -346,7 +354,7 @@ export default function DartFinancialRawPage() {
           <div className="flex flex-col gap-1 min-w-0">
             <label className="text-[11px] text-zinc-600">보고서</label>
             <select value={reprt} onChange={(e) => setReprt(e.target.value as ReprtCode)} className={ctrlCls}>
-              {REPRTS.map((r) => (
+              {DART_REPRT_OPTIONS.map((r) => (
                 <option key={r.code} value={r.code}>
                   {r.name}
                 </option>
@@ -368,11 +376,20 @@ export default function DartFinancialRawPage() {
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
-                onClick={loadAll}
+                onClick={() => loadAll(false)}
                 disabled={!corpCode || loading || batchBusy}
                 className="h-10 flex-1 rounded-md bg-[#ea580c] px-4 text-sm text-white hover:bg-[#c2410c] disabled:opacity-50"
               >
                 {loading ? '불러오는 중…' : '불러오기'}
+              </button>
+              <button
+                type="button"
+                onClick={() => loadAll(true)}
+                disabled={!corpCode || loading || batchBusy}
+                title="DB 캐시를 무시하고 OpenDART에서 다시 조회·저장"
+                className="h-10 shrink-0 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+              >
+                API 재조회
               </button>
               <button
                 type="button"

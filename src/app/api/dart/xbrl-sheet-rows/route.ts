@@ -56,6 +56,26 @@ type FnlttInsertRow = {
 }
 
 const TARGET_SHEETS = new Set(['DS320005', 'DS220005', 'DS220000', 'DS320000'])
+const TARGET_SHEET_LIST = ['DS320005', 'DS220005', 'DS220000', 'DS320000'] as const
+
+const SHEET_DISPLAY_NAME: Record<(typeof TARGET_SHEET_LIST)[number], string> = {
+  DS320005: '포괄손익계산서, 증권 - 별도',
+  DS220005: '재무상태표, 증권 - 별도',
+  DS220000: '재무상태표, 증권 - 연결',
+  DS320000: '포괄손익계산서, 증권 - 연결',
+}
+
+type DbFnlttRow = {
+  fs_div: FsDiv
+  sj_div: string
+  sheet_code: string | null
+  account_nm: string | null
+  account_id: string | null
+  thstrm_amount: number | null
+  frmtrm_amount: number | null
+  ord: number | null
+  currency: string | null
+}
 
 function getDartApiKey(): string | null {
   const key =
@@ -381,6 +401,105 @@ async function persistRowsToDartFnltt(args: {
 }
 
 /** DB에 dart_headcount 테이블이 없거나 RLS 등으로 실패해도 조회 본문은 성공시키기 위해 예외를 던지지 않습니다. */
+async function hasDbSheetRows(corp_code: string, year: number, reprt: ReprtCode): Promise<boolean> {
+  const { count, error } = await supabaseAdmin
+    .from('dart_fnltt')
+    .select('corp_code', { count: 'exact', head: true })
+    .eq('corp_code', corp_code)
+    .eq('bsns_year', year)
+    .eq('reprt_code', reprt)
+    .in('sheet_code', [...TARGET_SHEET_LIST])
+
+  if (error) throw error
+  return (count ?? 0) > 0
+}
+
+async function fetchAllDbSheetRows(corp_code: string, year: number, reprt: ReprtCode): Promise<DbFnlttRow[]> {
+  const out: DbFnlttRow[] = []
+  const pageSize = 1000
+  let from = 0
+
+  while (true) {
+    const to = from + pageSize - 1
+    const { data, error } = await supabaseAdmin
+      .from('dart_fnltt')
+      .select('fs_div, sj_div, sheet_code, account_nm, account_id, thstrm_amount, frmtrm_amount, ord, currency')
+      .eq('corp_code', corp_code)
+      .eq('bsns_year', year)
+      .eq('reprt_code', reprt)
+      .in('sheet_code', [...TARGET_SHEET_LIST])
+      .range(from, to)
+
+    if (error) throw error
+    const rows = (data ?? []) as DbFnlttRow[]
+    out.push(...rows)
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+
+  return out
+}
+
+function dbRowsToDisplayRows(dbRows: DbFnlttRow[]): Row[] {
+  return dbRows
+    .map((r) => {
+      const code = (r.sheet_code ?? '').trim().toUpperCase()
+      if (!TARGET_SHEETS.has(code)) return null
+      const sheet_name = SHEET_DISPLAY_NAME[code as (typeof TARGET_SHEET_LIST)[number]] ?? code
+      return {
+        sheet_code: code,
+        sheet_name,
+        fs_div: r.fs_div === 'CFS' ? 'CFS' : 'OFS',
+        sj_div: r.sj_div,
+        account_nm: r.account_nm,
+        account_id: r.account_id,
+        thstrm_amount: r.thstrm_amount,
+        frmtrm_amount: r.frmtrm_amount,
+        ord: r.ord,
+        currency: r.currency,
+      } satisfies Row
+    })
+    .filter((r): r is Row => r != null)
+    .sort((a, b) => {
+      if (a.sheet_code !== b.sheet_code) return a.sheet_code.localeCompare(b.sheet_code)
+      const ao = a.ord ?? 1e12
+      const bo = b.ord ?? 1e12
+      if (ao !== bo) return ao - bo
+      return String(a.account_nm ?? '').localeCompare(String(b.account_nm ?? ''), 'ko')
+    })
+}
+
+async function loadHeadcountFromDb(
+  corp_code: string,
+  year: number,
+  reprt: ReprtCode,
+): Promise<{ headcount: number | null; source?: string }> {
+  const { data, error } = await supabaseAdmin
+    .from('dart_headcount')
+    .select('headcount, headcount_source')
+    .eq('corp_code', corp_code)
+    .eq('bsns_year', year)
+    .eq('reprt_code', reprt)
+    .maybeSingle()
+
+  if (error) throw error
+  if (data?.headcount == null || !Number.isFinite(Number(data.headcount))) {
+    return { headcount: null }
+  }
+  const src = (data.headcount_source ?? '').trim()
+  return {
+    headcount: Math.round(Number(data.headcount)),
+    source: src ? `dart_headcount · ${src}` : 'dart_headcount',
+  }
+}
+
+async function loadFromDbCache(corp_code: string, year: number, reprt: ReprtCode) {
+  const dbRows = await fetchAllDbSheetRows(corp_code, year, reprt)
+  const rows = dbRowsToDisplayRows(dbRows)
+  const employee = await loadHeadcountFromDb(corp_code, year, reprt)
+  return { rows, employee }
+}
+
 async function persistHeadcount(args: {
   corp_code: string
   year: number
@@ -419,6 +538,28 @@ export async function GET(req: NextRequest) {
 
     const year = Number(searchParams.get('year') ?? new Date().getFullYear())
     const reprt = (searchParams.get('reprt') ?? '11011') as ReprtCode
+    const forceRefresh =
+      searchParams.get('refresh') === '1' ||
+      searchParams.get('refresh') === 'true' ||
+      searchParams.get('force') === '1' ||
+      searchParams.get('force') === 'true'
+
+    if (!forceRefresh && (await hasDbSheetRows(corp_code, year, reprt))) {
+      const cached = await loadFromDbCache(corp_code, year, reprt)
+      return NextResponse.json({
+        ok: true,
+        corp_code,
+        year,
+        reprt,
+        source: 'db',
+        count: cached.rows.length,
+        rows: cached.rows,
+        headcount: cached.employee.headcount,
+        headcount_source: cached.employee.source ?? null,
+        saved_count: 0,
+        headcount_saved: false,
+      })
+    }
 
     const [ofs, cfs] = await Promise.all([
       fetchFnltt({ corp_code, year, reprt, fs_div: 'OFS' }),
@@ -500,6 +641,7 @@ export async function GET(req: NextRequest) {
       corp_code,
       year,
       reprt,
+      source: 'api',
       count: rows.length,
       rows,
       headcount: employee.headcount,

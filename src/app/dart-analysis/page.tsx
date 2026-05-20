@@ -20,9 +20,9 @@ import {
   mergeDartCorpsFromDb,
   type MergedDartCorp,
 } from '@/data/dartCorpRows'
+import { DART_REPRT_OPTIONS, getDefaultDartReport, type ReprtCode } from '@/lib/dart'
 
 type CorpItem = MergedDartCorp
-type ReprtCode = '11011' | '11014' | '11012' | '11013'
 type FsDiv = 'OFS' | 'CFS'
 type MetricKey =
   | 'net_operating_revenue'
@@ -60,13 +60,6 @@ type Bundle = {
   metricLabels: Record<MetricKey, string>
   rows: Row[]
 }
-
-const REPRTS: { code: ReprtCode; name: string }[] = [
-  { code: '11011', name: '사업보고서(연간)' },
-  { code: '11014', name: '3분기보고서' },
-  { code: '11012', name: '반기보고서' },
-  { code: '11013', name: '1분기보고서' },
-]
 
 const UNITS = [
   { label: '원', value: 1 },
@@ -130,9 +123,11 @@ function pickAxis(row: Row, key: AxisKey, showCurrentOnly: boolean, unitDivisor:
   return num(base, unitDivisor)
 }
 
+const DEFAULT_REPORT = getDefaultDartReport()
+
 export default function DartAnalysisPage() {
-  const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
-  const [reprt, setReprt] = useState<ReprtCode>('11011')
+  const [year, setYear] = useState<number>(DEFAULT_REPORT.year)
+  const [reprt, setReprt] = useState<ReprtCode>(DEFAULT_REPORT.reprt)
   const [fsDiv, setFsDiv] = useState<FsDiv>('OFS')
   const [unit, setUnit] = useState<number>(100_000_000)
   const [showCurrentOnly, setShowCurrentOnly] = useState<boolean>(true)
@@ -301,7 +296,7 @@ export default function DartAnalysisPage() {
     const wb = XLSX.utils.book_new()
     const meta = [
       ['연도', bundle.year],
-      ['보고서', REPRTS.find((r) => r.code === reprt)?.name ?? reprt],
+      ['보고서', DART_REPRT_OPTIONS.find((r) => r.code === reprt)?.name ?? reprt],
       ['재무구분', bundle.fs_div],
       ['금액 단위', unitLabel],
       ['PL 시트', bundle.sheets.cis],
@@ -349,7 +344,7 @@ export default function DartAnalysisPage() {
           <div>
             <label className="text-xs text-zinc-600">보고서</label>
             <select value={reprt} onChange={(e) => setReprt(e.target.value as ReprtCode)} className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 text-sm">
-              {REPRTS.map((r) => (
+              {DART_REPRT_OPTIONS.map((r) => (
                 <option key={r.code} value={r.code}>
                   {r.name}
                 </option>

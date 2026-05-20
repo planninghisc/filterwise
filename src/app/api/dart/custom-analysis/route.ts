@@ -91,6 +91,15 @@ function sheetForMetric(key: MetricKey, fsDiv: FsDiv): string {
   return key === 'equity' ? SHEETS.bs[fsDiv] : SHEETS.cis[fsDiv]
 }
 
+const METRIC_KEYS: MetricKey[] = [
+  'net_operating_revenue',
+  'sga_including_personnel',
+  'operating_income',
+  'profit_before_tax',
+  'net_income',
+  'equity',
+]
+
 function toSignedFormula(f: Formula): SignedFormula {
   return {
     net_operating_revenue: f.net_operating_revenue.map((account_id) => ({ account_id, sign: 1 })),
@@ -100,6 +109,39 @@ function toSignedFormula(f: Formula): SignedFormula {
     net_income: f.net_income.map((account_id) => ({ account_id, sign: 1 })),
     equity: f.equity.map((account_id) => ({ account_id, sign: 1 })),
   }
+}
+
+const DEFAULT_SIGNED_FORMULA = toSignedFormula(DEFAULT_FORMULA)
+
+function normalizeFormulaTerms(v: unknown): FormulaTerm[] {
+  if (!Array.isArray(v)) return []
+  const out: FormulaTerm[] = []
+  for (const x of v) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as { account_id?: unknown; sign?: unknown }
+    let account_id = String(o.account_id ?? '').trim()
+    if (!account_id) continue
+    let sign: 1 | -1 = Number(o.sign ?? 1) < 0 ? -1 : 1
+    if (account_id.startsWith('-')) {
+      sign = -1
+      account_id = account_id.slice(1).trim()
+    } else if (account_id.startsWith('+')) {
+      account_id = account_id.slice(1).trim()
+    }
+    if (!account_id) continue
+    out.push({ account_id, sign })
+  }
+  return out
+}
+
+function resolveSignedFormula(dbRow: Record<string, unknown> | null | undefined): SignedFormula {
+  const out = { ...DEFAULT_SIGNED_FORMULA }
+  if (!dbRow) return out
+  for (const k of METRIC_KEYS) {
+    const custom = normalizeFormulaTerms(dbRow[k])
+    if (custom.length > 0) out[k] = custom
+  }
+  return out
 }
 
 function sumMetric(
@@ -156,7 +198,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'corp_codes가 필요합니다.' }, { status: 400 })
     }
 
-    const [rawRows, corpRes, hcRes] = await Promise.all([
+    const [rawRows, corpRes, hcRes, formulaRes] = await Promise.all([
       fetchAllFnlttRows({ year, reprt, fsDiv, corpCodes }),
       supabaseAdmin.from('dart_corp').select('corp_code, corp_name, tier, is_peer').in('corp_code', corpCodes),
       supabaseAdmin
@@ -165,10 +207,17 @@ export async function GET(req: NextRequest) {
         .eq('bsns_year', year)
         .eq('reprt_code', reprt)
         .in('corp_code', corpCodes),
+      supabaseAdmin
+        .from('dart_analysis_formula')
+        .select(
+          'corp_code, net_operating_revenue, sga_including_personnel, operating_income, profit_before_tax, net_income, equity',
+        )
+        .in('corp_code', corpCodes),
     ])
 
     if (corpRes.error) throw corpRes.error
     if (hcRes.error) throw hcRes.error
+    if (formulaRes.error) throw formulaRes.error
 
     const dbHeadByCode = new Map(
       (hcRes.data ?? []).map((r) => {
@@ -221,7 +270,12 @@ export async function GET(req: NextRequest) {
       (corpRes.data ?? []).map((c) => [c.corp_code, c as { corp_code: string; corp_name: string; tier: string; is_peer: boolean }]),
     )
     const headMap = new Map(headRes.map((h) => [h.corp_code, h]))
-    const baseFormula = toSignedFormula(DEFAULT_FORMULA)
+    const formulaByCorp = new Map(
+      (formulaRes.data ?? []).map((row) => [
+        (row as { corp_code: string }).corp_code,
+        row as Record<string, unknown>,
+      ]),
+    )
     const rowsByCorp = new Map<string, FnlttRow[]>()
     for (const r of rawRows) {
       if (!rowsByCorp.has(r.corp_code)) rowsByCorp.set(r.corp_code, [])
@@ -233,22 +287,23 @@ export async function GET(req: NextRequest) {
       const corp_name = meta?.corp_name?.trim() || corp_code
       const rowset = rowsByCorp.get(corp_code) ?? []
       const head = headMap.get(corp_code)
+      const formula = resolveSignedFormula(formulaByCorp.get(corp_code))
 
       const th = {
-        net_operating_revenue: sumMetric(rowset, 'net_operating_revenue', baseFormula, fsDiv, 'th'),
-        sga_including_personnel: sumMetric(rowset, 'sga_including_personnel', baseFormula, fsDiv, 'th'),
-        operating_income: sumMetric(rowset, 'operating_income', baseFormula, fsDiv, 'th'),
-        profit_before_tax: sumMetric(rowset, 'profit_before_tax', baseFormula, fsDiv, 'th'),
-        net_income: sumMetric(rowset, 'net_income', baseFormula, fsDiv, 'th'),
-        equity: sumMetric(rowset, 'equity', baseFormula, fsDiv, 'th'),
+        net_operating_revenue: sumMetric(rowset, 'net_operating_revenue', formula, fsDiv, 'th'),
+        sga_including_personnel: sumMetric(rowset, 'sga_including_personnel', formula, fsDiv, 'th'),
+        operating_income: sumMetric(rowset, 'operating_income', formula, fsDiv, 'th'),
+        profit_before_tax: sumMetric(rowset, 'profit_before_tax', formula, fsDiv, 'th'),
+        net_income: sumMetric(rowset, 'net_income', formula, fsDiv, 'th'),
+        equity: sumMetric(rowset, 'equity', formula, fsDiv, 'th'),
       }
       const fr = {
-        net_operating_revenue: sumMetric(rowset, 'net_operating_revenue', baseFormula, fsDiv, 'fr'),
-        sga_including_personnel: sumMetric(rowset, 'sga_including_personnel', baseFormula, fsDiv, 'fr'),
-        operating_income: sumMetric(rowset, 'operating_income', baseFormula, fsDiv, 'fr'),
-        profit_before_tax: sumMetric(rowset, 'profit_before_tax', baseFormula, fsDiv, 'fr'),
-        net_income: sumMetric(rowset, 'net_income', baseFormula, fsDiv, 'fr'),
-        equity: sumMetric(rowset, 'equity', baseFormula, fsDiv, 'fr'),
+        net_operating_revenue: sumMetric(rowset, 'net_operating_revenue', formula, fsDiv, 'fr'),
+        sga_including_personnel: sumMetric(rowset, 'sga_including_personnel', formula, fsDiv, 'fr'),
+        operating_income: sumMetric(rowset, 'operating_income', formula, fsDiv, 'fr'),
+        profit_before_tax: sumMetric(rowset, 'profit_before_tax', formula, fsDiv, 'fr'),
+        net_income: sumMetric(rowset, 'net_income', formula, fsDiv, 'fr'),
+        equity: sumMetric(rowset, 'equity', formula, fsDiv, 'fr'),
       }
       const headcount = head?.headcount ?? null
 

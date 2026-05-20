@@ -84,3 +84,25 @@ export type CorpMeta = {
   corp_code: string
   corp_name: string
 }
+
+/** UI·기본값용 — 공시 시기 순(1분기 → 반기 → 3분기 → 연간) */
+export const DART_REPRT_OPTIONS: ReadonlyArray<{ code: ReprtCode; name: string }> = [
+  { code: '11013', name: '1분기보고서' },
+  { code: '11012', name: '반기보고서' },
+  { code: '11014', name: '3분기보고서' },
+  { code: '11011', name: '사업보고서(연간)' },
+] as const
+
+/**
+ * 오늘(또는 asOf) 기준 가장 최근에 공시된 것으로 보이는 보고서·사업연도.
+ * 1분기(~5월), 반기(~8월), 3분기(~11월), 연간(다음해 ~3월) 공시 시점을 월 단위로 근사합니다.
+ */
+export function getDefaultDartReport(asOf: Date = new Date()): { year: number; reprt: ReprtCode } {
+  const y = asOf.getFullYear()
+  const m = asOf.getMonth() + 1
+
+  if (m < 5) return { year: y - 1, reprt: '11011' }
+  if (m < 8) return { year: y, reprt: '11013' }
+  if (m < 11) return { year: y, reprt: '11012' }
+  return { year: y, reprt: '11014' }
+}

@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { mergeDartCorpsFromDb, type MergedDartCorp } from '@/data/dartCorpRows'
+import { DART_REPRT_OPTIONS, getDefaultDartReport, type ReprtCode } from '@/lib/dart'
 
 type CorpItem = MergedDartCorp
 
@@ -14,17 +15,9 @@ type MetricKey =
 
 type FormulaTerm = { account_id: string; sign: 1 | -1 }
 type SignedFormula = Record<MetricKey, FormulaTerm[]>
-type ReprtCode = '11011' | '11014' | '11012' | '11013'
 type FsDiv = 'OFS' | 'CFS'
 type SjDiv = 'BS' | 'CIS'
 type AccountItem = { account_nm: string; account_id: string | null; key: string }
-
-const REPRTS: { code: ReprtCode; name: string }[] = [
-  { code: '11011', name: '사업보고서(연간)' },
-  { code: '11014', name: '3분기보고서' },
-  { code: '11012', name: '반기보고서' },
-  { code: '11013', name: '1분기보고서' },
-]
 
 const METRICS: MetricKey[] = [
   'net_operating_revenue',
@@ -65,6 +58,8 @@ function textToTerms(text: string): FormulaTerm[] {
     .filter((t) => t.account_id.length > 0)
 }
 
+const DEFAULT_REPORT = getDefaultDartReport()
+
 export default function DartCorpAccountPage() {
   const [corps, setCorps] = useState<CorpItem[]>([])
   const [loadingCorps, setLoadingCorps] = useState(false)
@@ -80,8 +75,8 @@ export default function DartCorpAccountPage() {
   })
   const [savingFormula, setSavingFormula] = useState(false)
   const [formulaMsg, setFormulaMsg] = useState('')
-  const [accountYear, setAccountYear] = useState<number>(new Date().getFullYear() - 1)
-  const [accountReprt, setAccountReprt] = useState<ReprtCode>('11011')
+  const [accountYear, setAccountYear] = useState<number>(DEFAULT_REPORT.year)
+  const [accountReprt, setAccountReprt] = useState<ReprtCode>(DEFAULT_REPORT.reprt)
   const [accountFsDiv, setAccountFsDiv] = useState<FsDiv>('OFS')
   const [accountSjDiv, setAccountSjDiv] = useState<SjDiv>('CIS')
   const [loadingAccounts, setLoadingAccounts] = useState(false)
@@ -415,7 +410,7 @@ export default function DartCorpAccountPage() {
                     onChange={(e) => setAccountReprt(e.target.value as ReprtCode)}
                     className="mt-1 h-9 w-full rounded border border-zinc-300 px-2 text-sm"
                   >
-                    {REPRTS.map((r) => (
+                    {DART_REPRT_OPTIONS.map((r) => (
                       <option key={r.code} value={r.code}>
                         {r.name}
                       </option>
