@@ -2,9 +2,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { isValidCronSecret } from '@/lib/requireCronOrSession'
-import axios from 'axios'
-import * as cheerio from 'cheerio'
-import iconv from 'iconv-lite'
+import { getStockInfo } from '@/lib/naverStock'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -21,34 +19,6 @@ function getKSTDate() {
 
 function getKSTDateString(date: Date) {
   return date.toISOString().split('T')[0];
-}
-
-async function getStockInfo() {
-  try {
-    const response = await axios.get('https://finance.naver.com/item/sise_day.naver?code=003530&page=1', {
-      responseType: 'arraybuffer',
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    const html = iconv.decode(Buffer.from(response.data), 'euc-kr');
-    const $ = cheerio.load(html);
-    
-    const row1_date = $('table.type2 tr:nth-child(3) td:nth-child(1) span').text().trim();
-    const row1_priceStr = $('table.type2 tr:nth-child(3) td:nth-child(2) span').text().trim();
-    const row2_priceStr = $('table.type2 tr:nth-child(4) td:nth-child(2) span').text().trim();
-    
-    if (!row1_priceStr || !row2_priceStr) return null;
-
-    const currentPrice = parseInt(row1_priceStr.replace(/,/g, ''), 10);
-    const prevPrice = parseInt(row2_priceStr.replace(/,/g, ''), 10);
-    
-    const diff = currentPrice - prevPrice;
-    const rate = ((diff / prevPrice) * 100).toFixed(2);
-    
-    return { price: currentPrice, diff, rate, date: row1_date };
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
 }
 
 export async function GET(request: Request) {
