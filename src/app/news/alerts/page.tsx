@@ -40,6 +40,16 @@ const KeywordVisualizer = ({ text }: { text: string }) => {
   )
 }
 
+interface PersonalKeyword {
+  id: string
+  chat_id: string
+  keyword: string
+  created_at: string
+  first_name: string | null
+  username: string | null
+  is_active: boolean
+}
+
 interface AlertKeyword {
   id: string
   keyword: string
@@ -62,6 +72,7 @@ export default function NewsAlertPage() {
   const [savingStartMessage, setSavingStartMessage] = useState(false)
 
   const [subCount, setSubCount] = useState(0)
+  const [personalKeywords, setPersonalKeywords] = useState<PersonalKeyword[]>([])
   const [sendingTest, setSendingTest] = useState(false)
 
   const supabase = createBrowserClient(
@@ -74,6 +85,12 @@ export default function NewsAlertPage() {
     const keyJson = await keyRes.json().catch(() => ({ ok: false }))
     if (keyRes.ok && keyJson.ok && Array.isArray(keyJson.list)) {
       setKeywords(keyJson.list as AlertKeyword[])
+    }
+
+    const personalRes = await fetch('/api/news/alert-keywords/personal', { cache: 'no-store' })
+    const personalJson = await personalRes.json().catch(() => ({ ok: false }))
+    if (personalRes.ok && personalJson.ok && Array.isArray(personalJson.list)) {
+      setPersonalKeywords(personalJson.list as PersonalKeyword[])
     }
 
     const countRes = await fetch('/api/telegram/subscribers/count', { cache: 'no-store' })
@@ -115,6 +132,12 @@ export default function NewsAlertPage() {
       return
     }
     setInput('')
+    fetchData()
+  }
+
+  const deletePersonalKeyword = async (item: PersonalKeyword) => {
+    if (!confirm(`${item.first_name || item.chat_id} 님의 개인 키워드 "${item.keyword}" 를 삭제하시겠습니까?`)) return
+    await fetch(`/api/news/alert-keywords/personal?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' })
     fetchData()
   }
 
@@ -277,6 +300,29 @@ export default function NewsAlertPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      {/* 1-2. 개인 키워드 현황 (텔레그램 /add 로 등록) */}
+      <section>
+        <h2 className="mb-2 border-l-4 border-orange-500 pl-3 text-xl font-bold text-gray-800">개인 키워드 현황</h2>
+        <p className="mb-4 text-sm text-gray-500">구독자가 텔레그램에서 <code>/add</code> 로 등록한 키워드입니다. 해당 구독자에게만 알림이 갑니다.</p>
+        {personalKeywords.length === 0 ? (
+          <p className="rounded-xl border border-gray-100 bg-white p-5 text-sm text-gray-500">등록된 개인 키워드가 없습니다.</p>
+        ) : (
+          <ul className="grid gap-2">
+            {personalKeywords.map((item) => (
+              <li key={item.id} className="flex items-center justify-between rounded-xl border border-gray-100 bg-white px-5 py-3 shadow-sm">
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <span className="font-semibold text-gray-800">{item.first_name || '(이름 없음)'}</span>
+                  {item.username && <span className="text-gray-400">@{item.username}</span>}
+                  {!item.is_active && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">구독 중지</span>}
+                  <KeywordVisualizer text={item.keyword} />
+                </div>
+                <button onClick={() => deletePersonalKeyword(item)} className="p-2 text-gray-400 hover:text-red-500">🗑️</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* 2. 전체 공지 발송 섹션 */}

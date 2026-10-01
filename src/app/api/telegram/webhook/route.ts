@@ -1,8 +1,8 @@
 // src/app/api/telegram/webhook/route.ts
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { handleCallbackQuery, handleKeywordCommand, parseCommand, sendMessage } from '@/lib/telegram/bot'
 
-const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`
 const DEFAULT_START_MESSAGE = `
 🎉 <b>환영합니다! 뉴스 알림 구독이 완료되었습니다.</b>
 
@@ -17,26 +17,12 @@ const DEFAULT_START_MESSAGE = `
 💡 현재 등록 키워드
 전산장애,전산오류,장애,오류,민원,소송,금융감독원,금감원
 
-키워드 등록이 필요한 경우 관리자에게 연락해주세요.
+💡 나만의 키워드도 등록할 수 있습니다.
+<code>/add IPO</code> 처럼 입력하면 해당 단어가 들어간 기사도 알려드려요. (사용법: <code>/help</code>)
 
 알림을 끄고 싶으시면 <code>/stop</code>을 입력해주세요.
 `.trim()
 
-async function sendMessage(chatId: string, text: string) {
-  await fetch(`${TELEGRAM_API}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
-  })
-}
-
-function normalizeCommand(text: string): '/start' | '/stop' | null {
-  const raw = text.trim().split(/\s+/)[0] ?? ''
-  const cmd = raw.toLowerCase()
-  if (cmd === '/start' || cmd.startsWith('/start@')) return '/start'
-  if (cmd === '/stop' || cmd.startsWith('/stop@')) return '/stop'
-  return null
-}
 
 function toText(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -68,6 +54,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // setWebhook(secret_token) 으로 등록하면 텔레그램이 매 요청에 이 헤더를 붙인다 → 위조 요청 차단
+  const expectedSecret = (process.env.TELEGRAM_WEBHOOK_SECRET ?? '').trim()
+  if (expectedSecret && request.headers.get('x-telegram-bot-api-secret-token') !== expectedSecret) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const update = await request.json()
     console.log('[telegram webhook] incoming update:', {
@@ -76,12 +68,17 @@ export async function POST(request: Request) {
       text: update?.message?.text ?? null,
       chat_id: update?.message?.chat?.id ?? null,
     })
+    if (update.callback_query) {
+      await handleCallbackQuery(update.callback_query)
+      return NextResponse.json({ ok: true })
+    }
     if (!update.message) return NextResponse.json({ ok: true })
 
     const { chat, text, caption, from } = update.message
     const chatId = chat.id.toString()
     const textValue = toText(text) ?? toText(caption)
-    const command = textValue ? normalizeCommand(textValue) : null
+    const parsed = textValue ? parseCommand(textValue) : null
+    const command = parsed?.cmd ?? null
 
     // 1. /start 명령어가 오면 구독자로 등록
     if (command === '/start') {
@@ -116,7 +113,11 @@ export async function POST(request: Request) {
         await sendMessage(chatId, '🔕 <b>알림이 중지되었습니다.</b>\n다시 받으려면 <code>/start</code>를 입력하세요.')
       }
     }
-    // 3. 일반 메시지는 관리자 수신함에 저장
+    // 3. 개인 알림 키워드 명령어 (/add /list /del /help)
+    else if (parsed && (await handleKeywordCommand(chatId, parsed.cmd, parsed.args))) {
+      // handled
+    }
+    // 4. 일반 메시지는 관리자 수신함에 저장
     else if (textValue) {
       const { error } = await supabaseAdmin.from('telegram_inbox').insert({
         chat_id: chatId,

@@ -115,17 +115,20 @@ export async function collectBaseNews(opts: { dryRun?: boolean } = {}) {
   return { saved, logs }
 }
 
+type AlertArticle = Pick<SavedArticle, 'title' | 'content' | 'source_url'>
+
 /**
- * 새로 저장된 기사 중 +@ 키워드에 걸린 기사를 활성 구독자에게 발송
- * dryRun: 발송하지 않고 매칭 결과만 반환 / onlyChatId: 구독자 대신 이 chat_id 에만 발송 (테스트용)
+ * 새로 저장된 기사 중 알림 키워드에 걸린 기사를 발송
+ * - 공용 키워드(alert_keywords): 활성 구독자 전원
+ * - 개인 키워드(chat_alert_keywords): 그 대화방에만
+ * 한 대화방에는 걸린 기사를 메시지 1통으로 묶어 보낸다 (같은 기사는 1번만).
+ * dryRun: 발송하지 않고 매칭 결과만 반환 / onlyChatId: 이 chat_id 에만 발송 (테스트용)
  */
-export async function sendKeywordAlerts(
-  saved: Pick<SavedArticle, 'title' | 'content' | 'source_url'>[],
-  opts: { dryRun?: boolean; onlyChatId?: string } = {},
-) {
+export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: boolean; onlyChatId?: string } = {}) {
   const result = {
     conditions: [] as string[],
     matched: [] as Array<{ title: string; source_url: string; condition: string }>,
+    personal_matched: [] as Array<{ chat_id: string; title: string; condition: string }>,
     matched_new_articles: 0,
     total_targets: 0,
     sent: 0,
@@ -139,24 +142,10 @@ export async function sendKeywordAlerts(
     .select('keyword, alert_filter')
     .order('created_at', { ascending: false })
   if (keywordErr) throw keywordErr
-
   const conditions = Array.from(new Set((keywordRows ?? []).map(alertConditionOf).filter(Boolean)))
   result.conditions = conditions
-  if (conditions.length === 0) return result
 
-  const toNotify: Array<{ article: (typeof saved)[number]; condition: string }> = []
-  for (const article of saved) {
-    const condition = conditions.find((c) => matchesAlertFilter(article, c))
-    if (condition) toNotify.push({ article, condition })
-  }
-  const limited = toNotify.slice(0, 20)
-  result.matched_new_articles = limited.length
-  result.matched = limited.map(({ article, condition }) => ({ title: article.title, source_url: article.source_url, condition }))
-  if (limited.length === 0 || opts.dryRun || (FORCE_DRY_RUN && !opts.onlyChatId)) return result
-
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (!token) throw new Error('TELEGRAM_BOT_TOKEN missing')
-
+  // 발송 대상 대화방
   let chatIds: string[]
   if (opts.onlyChatId) {
     chatIds = [opts.onlyChatId]
@@ -168,17 +157,63 @@ export async function sendKeywordAlerts(
     if (subsErr) throw subsErr
     chatIds = (subs ?? []).map((s) => String((s as { chat_id: string }).chat_id))
   }
-  result.total_targets = chatIds.length
-  if (chatIds.length === 0) return result
 
-  const lines = limited.map(
-    ({ article, condition }) =>
-      `• <a href="${article.source_url}">${htmlEscape(article.title)}</a> [조건:${htmlEscape(condition)}]`,
-  )
-  const msg = `🚨 <b>키워드 뉴스 알림</b>\n\n` + `${lines.join('\n')}\n\n` + `기준 키워드 건수: ${limited.length}건`
+  // 대화방별 개인 키워드
+  const personalByChat = new Map<string, string[]>()
+  if (chatIds.length > 0) {
+    const { data: personalRows, error: personalErr } = await supabaseAdmin
+      .from('chat_alert_keywords')
+      .select('chat_id, keyword')
+      .in('chat_id', chatIds)
+    if (personalErr) throw personalErr
+    for (const row of personalRows ?? []) {
+      const r = row as { chat_id: string; keyword: string }
+      const list = personalByChat.get(String(r.chat_id)) ?? []
+      list.push(r.keyword)
+      personalByChat.set(String(r.chat_id), list)
+    }
+  }
+
+  // 공용 매칭 (모든 대화방 공통)
+  const commonMatches: Array<{ article: AlertArticle; label: string }> = []
+  for (const article of saved) {
+    const condition = conditions.find((c) => matchesAlertFilter(article, c))
+    if (condition) {
+      commonMatches.push({ article, label: `공용: ${condition}` })
+      result.matched.push({ title: article.title, source_url: article.source_url, condition })
+    }
+  }
+  const commonUrls = new Set(commonMatches.map((m) => m.article.source_url))
+
+  // 대화방별 메시지 구성
+  const messages: Array<{ chatId: string; items: Array<{ article: AlertArticle; label: string }> }> = []
+  for (const chatId of chatIds) {
+    const items = [...commonMatches]
+    for (const keyword of personalByChat.get(chatId) ?? []) {
+      for (const article of saved) {
+        if (commonUrls.has(article.source_url) || items.some((i) => i.article.source_url === article.source_url)) continue
+        if (matchesAlertFilter(article, keyword)) {
+          items.push({ article, label: `내 키워드: ${keyword}` })
+          result.personal_matched.push({ chat_id: chatId, title: article.title, condition: keyword })
+        }
+      }
+    }
+    if (items.length > 0) messages.push({ chatId, items: items.slice(0, 20) })
+  }
+
+  result.matched_new_articles = new Set(messages.flatMap((m) => m.items.map((i) => i.article.source_url))).size
+  result.total_targets = messages.length
+  if (messages.length === 0 || opts.dryRun || (FORCE_DRY_RUN && !opts.onlyChatId)) return result
+
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  if (!token) throw new Error('TELEGRAM_BOT_TOKEN missing')
 
   const results = await Promise.all(
-    chatIds.map(async (chatId) => {
+    messages.map(async ({ chatId, items }) => {
+      const lines = items.map(
+        ({ article, label }) => `• <a href="${article.source_url}">${htmlEscape(article.title)}</a> [${htmlEscape(label)}]`,
+      )
+      const msg = `🚨 <b>키워드 뉴스 알림</b>\n\n` + `${lines.join('\n')}\n\n` + `기준 키워드 건수: ${items.length}건`
       try {
         const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',

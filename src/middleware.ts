@@ -47,6 +47,7 @@ function isRestrictedNewsPath(pathname: string): boolean {
     pathname.startsWith('/news/telegram-inbox/') ||
     pathname.startsWith('/api/telegram/inbox') ||
     pathname.startsWith('/api/telegram/reply') ||
+    pathname.startsWith('/api/telegram/webhook-setup') ||
     pathname.startsWith('/api/news/alert-keywords')
   )
 }
