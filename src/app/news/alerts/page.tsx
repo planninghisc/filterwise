@@ -4,11 +4,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
+import { BASE_KEYWORDS, alertConditionOf } from '@/lib/news/keywords'
 
 // --- 키워드 시각화 컴포넌트 ---
 const KeywordVisualizer = ({ text }: { text: string }) => {
-  if (text.includes('|')) {
-    const parts = text.split('|').map(t => t.trim())
+  // `,` 와 `|` 는 OR (알림 조건 문법과 동일)
+  if (/[|,，]/.test(text)) {
+    const parts = text.split(/[|,，]+/).map(t => t.trim()).filter(Boolean)
     return (
       <div className="flex flex-wrap gap-2 items-center">
         {parts.map((part, idx) => (
@@ -50,10 +52,8 @@ export default function NewsAlertPage() {
   
   // 키워드 등록/수정용 State
   const [input, setInput] = useState('')
-  const [filterInput, setFilterInput] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editKeyword, setEditKeyword] = useState('')
-  const [editFilter, setEditFilter] = useState('')
 
   // 공지 발송용 State
   const [announcement, setAnnouncement] = useState('')
@@ -106,7 +106,7 @@ export default function NewsAlertPage() {
     const res = await fetch('/api/news/alert-keywords', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword: input.trim(), alert_filter: filterInput.trim() || null }),
+      body: JSON.stringify({ keyword: input.trim() }),
     })
     const json = await res.json().catch(() => ({ ok: false, error: '요청 실패' }))
     if (!res.ok || !json.ok) {
@@ -115,7 +115,6 @@ export default function NewsAlertPage() {
       return
     }
     setInput('')
-    setFilterInput('')
     fetchData()
   }
 
@@ -126,7 +125,7 @@ export default function NewsAlertPage() {
   }
 
   const startEditing = (item: AlertKeyword) => {
-    setEditingId(item.id); setEditKeyword(item.keyword); setEditFilter(item.alert_filter || '')
+    setEditingId(item.id); setEditKeyword(alertConditionOf(item))
   }
 
   const saveEdit = async () => {
@@ -138,7 +137,6 @@ export default function NewsAlertPage() {
       body: JSON.stringify({
         id: editingId,
         keyword: editKeyword.trim(),
-        alert_filter: editFilter.trim() || null,
       }),
     })
     const json = await res.json().catch(() => ({ ok: false, error: '요청 실패' }))
@@ -234,13 +232,20 @@ export default function NewsAlertPage() {
       <section>
         <h2 className="mb-4 border-l-4 border-orange-500 pl-3 text-xl font-bold text-gray-800">뉴스 키워드 관리</h2>
         
+        <div className="mb-4 rounded-2xl border border-gray-200 bg-white p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs bg-gray-100 px-2 py-1 rounded font-bold">수집 (고정)</span>
+            {BASE_KEYWORDS.map((k) => (
+              <span key={k} className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-sm font-medium text-blue-700">{k}</span>
+            ))}
+          </div>
+          <p className="mt-2 text-sm text-gray-500">위 키워드로 검색된 기사는 모두 수집됩니다. 그중 아래 알림 키워드가 들어간 기사만 텔레그램으로 발송됩니다.</p>
+        </div>
+
         <div className="mb-6 rounded-2xl border border-orange-100 bg-orange-50 p-5">
           <form onSubmit={addKeyword} className="flex flex-col md:flex-row gap-3">
             <div className="flex-1">
-              <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="수집 검색어 (예: 한화투자증권)" className="w-full p-3 border border-gray-300 rounded-xl" />
-            </div>
-            <div className="flex-1">
-              <input type="text" value={filterInput} onChange={(e) => setFilterInput(e.target.value)} placeholder="알림 조건 (예: 체감온도, 주말, 포천 = OR / 공백 = AND / | = OR)" className="w-full p-3 border border-gray-300 rounded-xl" />
+              <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="알림 키워드 (예: 전산장애, 전산오류 = OR / 공백 = AND)" className="w-full p-3 border border-gray-300 rounded-xl" />
             </div>
             <button type="submit" className="whitespace-nowrap rounded-xl bg-[#ea580c] px-6 py-3 font-bold text-white hover:bg-[#c2410c]">등록</button>
           </form>
@@ -251,10 +256,7 @@ export default function NewsAlertPage() {
             <li key={item.id} className="p-5 bg-white border border-gray-100 rounded-xl shadow-sm">
               {editingId === item.id ? (
                 <div className="flex flex-col gap-3">
-                  <div className="flex gap-3">
-                    <input value={editKeyword} onChange={(e) => setEditKeyword(e.target.value)} className="flex-1 p-2 border rounded" />
-                    <input value={editFilter} onChange={(e) => setEditFilter(e.target.value)} placeholder="조건 없음" className="flex-1 p-2 border rounded" />
-                  </div>
+                  <input value={editKeyword} onChange={(e) => setEditKeyword(e.target.value)} placeholder="알림 키워드" className="w-full p-2 border rounded" />
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setEditingId(null)} className="px-3 py-1 bg-gray-100 rounded">취소</button>
                     <button onClick={saveEdit} className="rounded bg-[#ea580c] px-3 py-1 text-white hover:bg-[#c2410c]">저장</button>
@@ -262,12 +264,9 @@ export default function NewsAlertPage() {
                 </div>
               ) : (
                 <div className="flex justify-between items-center">
-                  <div className="flex flex-col gap-2">
-                     <div className="flex items-center gap-2"><span className="text-xs bg-gray-100 px-2 py-1 rounded font-bold">수집</span> <KeywordVisualizer text={item.keyword} /></div>
-                     <div className="flex items-center gap-2 text-sm">
-                        <span className={`text-xs font-bold px-2 py-1 rounded ${item.alert_filter ? 'text-green-700 bg-green-100' : 'text-gray-500 bg-gray-100'}`}>알림</span>
-                        {item.alert_filter ? <span className="font-semibold text-green-700">{item.alert_filter}</span> : <span className="text-gray-500">전체 발송</span>}
-                     </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-xs font-bold px-2 py-1 rounded text-green-700 bg-green-100">알림</span>
+                    <KeywordVisualizer text={alertConditionOf(item)} />
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => startEditing(item)} className="p-2 text-gray-400 hover:text-[#ea580c]">✏️</button>

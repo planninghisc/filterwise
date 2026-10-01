@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import LogoutButton from '@/components/LogoutButton'
+import { isNewsAdminEmail } from '@/lib/newsAdmin'
 
 // lucide-react 아이콘 (LayoutDashboard 추가됨)
 import {
@@ -25,7 +26,6 @@ import {
 
 type NavItem = { name: string; href: string; icon: React.ReactNode }
 type Crumb = { label: string; href?: string; active?: boolean }
-const PRIVILEGED_NEWS_EMAILS = new Set(['test@hanwha.com', 'admin@hanwha.com'])
 
 const navSections: Array<Array<NavItem>> = [
   [
@@ -140,7 +140,7 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
     return ''
   }, [displayName, email, loadingProfile])
   const canAccessRestrictedNewsMenus = useMemo(
-    () => PRIVILEGED_NEWS_EMAILS.has((email || '').trim().toLowerCase()),
+    () => isNewsAdminEmail(email),
     [email],
   )
 

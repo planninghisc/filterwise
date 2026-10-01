@@ -1,8 +1,7 @@
 // src/middleware.ts
 import { NextResponse, NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-
-const PRIVILEGED_NEWS_EMAILS = new Set(['test@hanwha.com', 'admin@hanwha.com'])
+import { isNewsAdminEmail } from '@/lib/newsAdmin'
 
 /** Pages + edge calls that must work without a logged-in session. */
 function isPublic(req: NextRequest): boolean {
@@ -47,7 +46,8 @@ function isRestrictedNewsPath(pathname: string): boolean {
     pathname === '/news/telegram-inbox' ||
     pathname.startsWith('/news/telegram-inbox/') ||
     pathname.startsWith('/api/telegram/inbox') ||
-    pathname.startsWith('/api/telegram/reply')
+    pathname.startsWith('/api/telegram/reply') ||
+    pathname.startsWith('/api/news/alert-keywords')
   )
 }
 
@@ -89,9 +89,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isRestrictedNewsPath(pathname)) {
-    const email = String(user.email ?? '').trim().toLowerCase()
-    const allowed = PRIVILEGED_NEWS_EMAILS.has(email)
-    if (!allowed) {
+    if (!isNewsAdminEmail(user.email)) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 })
       }

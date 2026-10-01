@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { requireCronOrSession, getSessionUser } from '@/lib/requireCronOrSession'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
+// alert_keywords.keyword = 알림 키워드(조건). 수집은 BASE_KEYWORDS 고정(src/lib/news/collect.ts).
+// alert_filter 는 예전 형식(수집 검색어 + 조건) 행 호환용이며 새로 쓰지 않는다.
+// 접근 권한: middleware 에서 뉴스 관리자 계정만 허용.
+
 export const dynamic = 'force-dynamic'
 
 function badRequest(message: string) {
@@ -28,18 +32,14 @@ export async function POST(request: Request) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
 
-  const body = (await request.json().catch(() => ({}))) as {
-    keyword?: string
-    alert_filter?: string | null
-  }
+  const body = (await request.json().catch(() => ({}))) as { keyword?: string }
 
   const keyword = String(body.keyword ?? '').trim()
-  const alert_filter = String(body.alert_filter ?? '').trim() || null
   if (!keyword) return badRequest('keyword is required')
 
   const { data, error } = await supabaseAdmin
     .from('alert_keywords')
-    .insert({ keyword, alert_filter, created_by: user.id })
+    .insert({ keyword, alert_filter: null, created_by: user.id })
     .select('id, keyword, alert_filter, created_at')
     .single()
 
@@ -51,21 +51,16 @@ export async function PATCH(request: Request) {
   const denied = await requireCronOrSession(request)
   if (denied) return denied
 
-  const body = (await request.json().catch(() => ({}))) as {
-    id?: string
-    keyword?: string
-    alert_filter?: string | null
-  }
+  const body = (await request.json().catch(() => ({}))) as { id?: string; keyword?: string }
   const id = String(body.id ?? '').trim()
   const keyword = String(body.keyword ?? '').trim()
-  const alert_filter = String(body.alert_filter ?? '').trim() || null
 
   if (!id) return badRequest('id is required')
   if (!keyword) return badRequest('keyword is required')
 
   const { data, error } = await supabaseAdmin
     .from('alert_keywords')
-    .update({ keyword, alert_filter })
+    .update({ keyword, alert_filter: null })
     .eq('id', id)
     .select('id, keyword, alert_filter, created_at')
     .single()

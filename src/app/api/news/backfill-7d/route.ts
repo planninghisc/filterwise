@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { fetchNaverNews } from '@/lib/news/ingestNaver' 
+import { BASE_KEYWORDS } from '@/lib/news/keywords'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ function generateTitleHash(title: string) {
 
 export async function GET(request: Request) {
   try {
-    const keywords = ['한화투자증권', '한화증권']
+    const keywords = BASE_KEYWORDS
     const debugLogs: any[] = []
 
     // 1. 기준 날짜: 오늘 포함 최근 3일 (3일 전 00:00 이후)
@@ -107,4 +108,4 @@ export async function GET(request: Request) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+}
