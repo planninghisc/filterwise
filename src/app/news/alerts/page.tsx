@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { BASE_KEYWORDS, alertConditionOf } from '@/lib/news/keywords'
 
@@ -48,6 +48,128 @@ interface PersonalKeyword {
   first_name: string | null
   username: string | null
   is_active: boolean
+}
+
+// --- 개인 키워드 현황: 검색 + 사용자별/키워드별 보기 ---
+const PersonalKeywordPanel = ({
+  items,
+  onDelete,
+}: {
+  items: PersonalKeyword[]
+  onDelete: (item: PersonalKeyword) => void
+}) => {
+  const [query, setQuery] = useState('')
+  const [view, setView] = useState<'user' | 'keyword'>('user')
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return items
+    return items.filter((item) =>
+      [item.first_name, item.username, item.chat_id, item.keyword].some((v) => (v ?? '').toLowerCase().includes(q)),
+    )
+  }, [items, query])
+
+  const byUser = useMemo(() => {
+    const map = new Map<string, { chat_id: string; first_name: string | null; username: string | null; is_active: boolean; items: PersonalKeyword[] }>()
+    for (const item of filtered) {
+      const g = map.get(item.chat_id) ?? { chat_id: item.chat_id, first_name: item.first_name, username: item.username, is_active: item.is_active, items: [] }
+      g.items.push(item)
+      map.set(item.chat_id, g)
+    }
+    return Array.from(map.values()).sort((a, b) => (a.first_name ?? '').localeCompare(b.first_name ?? ''))
+  }, [filtered])
+
+  const byKeyword = useMemo(() => {
+    const map = new Map<string, { keyword: string; items: PersonalKeyword[] }>()
+    for (const item of filtered) {
+      const key = item.keyword.trim().toLowerCase()
+      const g = map.get(key) ?? { keyword: item.keyword, items: [] }
+      g.items.push(item)
+      map.set(key, g)
+    }
+    return Array.from(map.values()).sort((a, b) => b.items.length - a.items.length || a.keyword.localeCompare(b.keyword))
+  }, [filtered])
+
+  const userLabel = (u: { first_name: string | null; username: string | null }) =>
+    `${u.first_name || '(이름 없음)'}${u.username ? ` @${u.username}` : ''}`
+
+  if (items.length === 0) {
+    return <p className="rounded-xl border border-gray-100 bg-white p-5 text-sm text-gray-500">등록된 개인 키워드가 없습니다.</p>
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="이름, @아이디, chat_id, 키워드로 검색"
+          className="flex-1 rounded-xl border border-gray-300 p-3 text-sm"
+        />
+        <div className="flex rounded-xl border border-gray-200 bg-white p-1 text-sm">
+          {([['user', '사용자별'], ['keyword', '키워드별']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`rounded-lg px-4 py-2 font-semibold ${view === v ? 'bg-[#ea580c] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-gray-500">
+        구독자 {byUser.length}명 · 키워드 {filtered.length}개{query.trim() && ` (전체 ${items.length}개 중)`}
+      </p>
+
+      {filtered.length === 0 ? (
+        <p className="rounded-xl border border-gray-100 bg-white p-5 text-sm text-gray-500">검색 결과가 없습니다.</p>
+      ) : view === 'user' ? (
+        <ul className="grid gap-2">
+          {byUser.map((u) => (
+            <li key={u.chat_id} className="rounded-xl border border-gray-100 bg-white px-5 py-3 shadow-sm">
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold text-gray-800">{u.first_name || '(이름 없음)'}</span>
+                {u.username && <span className="text-gray-400">@{u.username}</span>}
+                <span className="text-xs text-gray-400">{u.chat_id}</span>
+                {!u.is_active && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">구독 중지</span>}
+                <span className="ml-auto text-xs text-gray-500">{u.items.length}개</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {u.items.map((item) => (
+                  <span key={item.id} className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 py-1 pl-2 pr-1">
+                    <KeywordVisualizer text={item.keyword} />
+                    <button onClick={() => onDelete(item)} title="삭제" className="px-1 text-gray-400 hover:text-red-500">✕</button>
+                  </span>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="grid gap-2">
+          {byKeyword.map((g) => (
+            <li key={g.keyword} className="rounded-xl border border-gray-100 bg-white px-5 py-3 shadow-sm">
+              <div className="mb-2 flex items-center gap-2">
+                <KeywordVisualizer text={g.keyword} />
+                <span className="ml-auto text-xs text-gray-500">{g.items.length}명</span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-sm">
+                {g.items.map((item) => (
+                  <span key={item.id} className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 py-1 pl-2 pr-1 text-gray-700">
+                    {userLabel(item)}
+                    {!item.is_active && <span className="text-xs text-gray-400">(중지)</span>}
+                    <button onClick={() => onDelete(item)} title="삭제" className="px-1 text-gray-400 hover:text-red-500">✕</button>
+                  </span>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 interface AlertKeyword {
@@ -306,23 +428,7 @@ export default function NewsAlertPage() {
       <section>
         <h2 className="mb-2 border-l-4 border-orange-500 pl-3 text-xl font-bold text-gray-800">개인 키워드 현황</h2>
         <p className="mb-4 text-sm text-gray-500">구독자가 텔레그램에서 <code>/add</code> 로 등록한 키워드입니다. 해당 구독자에게만 알림이 갑니다.</p>
-        {personalKeywords.length === 0 ? (
-          <p className="rounded-xl border border-gray-100 bg-white p-5 text-sm text-gray-500">등록된 개인 키워드가 없습니다.</p>
-        ) : (
-          <ul className="grid gap-2">
-            {personalKeywords.map((item) => (
-              <li key={item.id} className="flex items-center justify-between rounded-xl border border-gray-100 bg-white px-5 py-3 shadow-sm">
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="font-semibold text-gray-800">{item.first_name || '(이름 없음)'}</span>
-                  {item.username && <span className="text-gray-400">@{item.username}</span>}
-                  {!item.is_active && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">구독 중지</span>}
-                  <KeywordVisualizer text={item.keyword} />
-                </div>
-                <button onClick={() => deletePersonalKeyword(item)} className="p-2 text-gray-400 hover:text-red-500">🗑️</button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <PersonalKeywordPanel items={personalKeywords} onDelete={deletePersonalKeyword} />
       </section>
 
       {/* 2. 전체 공지 발송 섹션 */}
