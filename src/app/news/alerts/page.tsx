@@ -195,8 +195,6 @@ export default function NewsAlertPage() {
 
   const [subCount, setSubCount] = useState(0)
   const [personalKeywords, setPersonalKeywords] = useState<PersonalKeyword[]>([])
-  const [suggested, setSuggested] = useState<Array<{ id: string; keyword: string }>>([])
-  const [suggestedInput, setSuggestedInput] = useState('')
   const [sendingTest, setSendingTest] = useState(false)
 
   const supabase = createBrowserClient(
@@ -215,12 +213,6 @@ export default function NewsAlertPage() {
     const personalJson = await personalRes.json().catch(() => ({ ok: false }))
     if (personalRes.ok && personalJson.ok && Array.isArray(personalJson.list)) {
       setPersonalKeywords(personalJson.list as PersonalKeyword[])
-    }
-
-    const suggestedRes = await fetch('/api/news/alert-keywords/suggested', { cache: 'no-store' })
-    const suggestedJson = await suggestedRes.json().catch(() => ({ ok: false }))
-    if (suggestedRes.ok && suggestedJson.ok && Array.isArray(suggestedJson.list)) {
-      setSuggested(suggestedJson.list)
     }
 
     const countRes = await fetch('/api/telegram/subscribers/count', { cache: 'no-store' })
@@ -262,30 +254,6 @@ export default function NewsAlertPage() {
       return
     }
     setInput('')
-    fetchData()
-  }
-
-  const addSuggested = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!suggestedInput.trim()) return
-    const res = await fetch('/api/news/alert-keywords/suggested', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword: suggestedInput.trim() }),
-    })
-    const json = await res.json().catch(() => ({ ok: false, error: '요청 실패' }))
-    if (!res.ok || !json.ok) {
-      if (json.code === '23505') alert('이미 등록된 추천 키워드입니다.')
-      else alert('오류: ' + (json.error || '등록 실패'))
-      return
-    }
-    setSuggestedInput('')
-    fetchData()
-  }
-
-  const deleteSuggested = async (item: { id: string; keyword: string }) => {
-    if (!confirm(`추천 키워드 "${item.keyword}" 를 삭제하시겠습니까?\n(이미 등록한 구독자의 개인 키워드는 유지됩니다)`)) return
-    await fetch(`/api/news/alert-keywords/suggested?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' })
     fetchData()
   }
 
@@ -461,36 +429,6 @@ export default function NewsAlertPage() {
         <h2 className="mb-2 border-l-4 border-orange-500 pl-3 text-xl font-bold text-gray-800">개인 키워드 현황</h2>
         <p className="mb-4 text-sm text-gray-500">구독자가 텔레그램에서 <code>/add</code> 로 등록한 키워드입니다. 해당 구독자에게만 알림이 갑니다.</p>
         <PersonalKeywordPanel items={personalKeywords} onDelete={deletePersonalKeyword} />
-      </section>
-
-      {/* 1-3. 추천 키워드 (텔레그램 "➕ 키워드 추가" 버튼에 노출) */}
-      <section>
-        <h2 className="mb-2 border-l-4 border-orange-500 pl-3 text-xl font-bold text-gray-800">추천 키워드</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          텔레그램에서 <b>➕ 키워드 추가</b>를 누르면 버튼으로 보여주는 키워드입니다. 구독자가 누르면 바로 개인 키워드로 등록됩니다.
-        </p>
-        <form onSubmit={addSuggested} className="mb-3 flex gap-3">
-          <input
-            type="text"
-            value={suggestedInput}
-            onChange={(e) => setSuggestedInput(e.target.value)}
-            placeholder="추천 키워드 (예: IPO, 리테일, 금감원)"
-            className="flex-1 rounded-xl border border-gray-300 p-3"
-          />
-          <button type="submit" className="whitespace-nowrap rounded-xl bg-[#ea580c] px-6 py-3 font-bold text-white hover:bg-[#c2410c]">추가</button>
-        </form>
-        {suggested.length === 0 ? (
-          <p className="rounded-xl border border-gray-100 bg-white p-5 text-sm text-gray-500">등록된 추천 키워드가 없습니다.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2 rounded-xl border border-gray-100 bg-white p-4">
-            {suggested.map((item) => (
-              <span key={item.id} className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 py-1 pl-3 pr-1 text-sm text-gray-800">
-                {item.keyword}
-                <button onClick={() => deleteSuggested(item)} title="삭제" className="px-1 text-gray-400 hover:text-red-500">✕</button>
-              </span>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* 2. 전체 공지 발송 섹션 */}
