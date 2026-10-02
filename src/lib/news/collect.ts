@@ -6,8 +6,14 @@ import crypto from 'crypto'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fetchNaverNews } from '@/lib/news/ingestNaver'
 import { BASE_KEYWORDS, alertConditionOf } from '@/lib/news/keywords'
+import { decodeEntities, isSameStory, titleBigrams } from '@/lib/news/similarity'
 
 export { BASE_KEYWORDS }
+
+/** 같은 이야기(비슷한 제목)의 기사를 이 기간 동안 같은 대화방에 다시 보내지 않는다 */
+const SAME_STORY_SUPPRESS_MS = 24 * 3600 * 1000
+/** 보낸 기사 기록 보관 기간 (지난 기록은 정리) */
+const DELIVERY_RETENTION_MS = 3 * 24 * 3600 * 1000
 
 /** 로컬 테스트 안전장치: NEWS_ALERT_DRY_RUN=1 이면 DB 저장·구독자 발송을 하지 않는다 (onlyChatId 발송만 허용) */
 const FORCE_DRY_RUN = process.env.NEWS_ALERT_DRY_RUN === '1'
@@ -122,6 +128,7 @@ type AlertArticle = Pick<SavedArticle, 'title' | 'content' | 'source_url'>
  * - 공용 키워드(alert_keywords): 활성 구독자 전원
  * - 개인 키워드(chat_alert_keywords): 그 대화방에만
  * 한 대화방에는 걸린 기사를 메시지 1통으로 묶어 보낸다 (같은 기사는 1번만).
+ * 제목이 비슷한 "같은 이야기"는 한 줄로 묶고, 24시간 안에 이미 보낸 이야기는 다시 보내지 않는다.
  * dryRun: 발송하지 않고 매칭 결과만 반환 / onlyChatId: 이 chat_id 에만 발송 (테스트용)
  */
 export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: boolean; onlyChatId?: string } = {}) {
@@ -129,6 +136,8 @@ export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: 
     conditions: [] as string[],
     matched: [] as Array<{ title: string; source_url: string; condition: string }>,
     personal_matched: [] as Array<{ chat_id: string; title: string; condition: string }>,
+    /** 최근 24시간 안에 같은 이야기를 이미 보내서 뺀 건수 (대화방별 합계) */
+    suppressed: 0,
     matched_new_articles: 0,
     total_targets: 0,
     sent: 0,
@@ -185,8 +194,27 @@ export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: 
   }
   const commonUrls = new Set(commonMatches.map((m) => m.article.source_url))
 
-  // 대화방별 메시지 구성
-  const messages: Array<{ chatId: string; items: Array<{ article: AlertArticle; label: string }> }> = []
+  // 대화방별 최근 24시간 동안 보낸 기사 제목 (같은 이야기 재발송 방지)
+  const recentByChat = new Map<string, Set<string>[]>()
+  if (chatIds.length > 0) {
+    const since = new Date(Date.now() - SAME_STORY_SUPPRESS_MS).toISOString()
+    const { data: sentRows, error: sentErr } = await supabaseAdmin
+      .from('alert_deliveries')
+      .select('chat_id, title')
+      .in('chat_id', chatIds)
+      .gte('sent_at', since)
+    if (sentErr) throw sentErr
+    for (const row of sentRows ?? []) {
+      const r = row as { chat_id: string; title: string }
+      const list = recentByChat.get(String(r.chat_id)) ?? []
+      list.push(titleBigrams(r.title))
+      recentByChat.set(String(r.chat_id), list)
+    }
+  }
+
+  // 대화방별 메시지 구성: 매칭 기사 → 최근에 보낸 이야기 제외 → 같은 이야기끼리 한 줄로 묶기
+  type StoryGroup = { article: AlertArticle; label: string; bigrams: Set<string>; titles: string[] }
+  const messages: Array<{ chatId: string; groups: StoryGroup[] }> = []
   for (const chatId of chatIds) {
     const items = [...commonMatches]
     for (const keyword of personalByChat.get(chatId) ?? []) {
@@ -198,10 +226,23 @@ export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: 
         }
       }
     }
-    if (items.length > 0) messages.push({ chatId, items: items.slice(0, 20) })
+
+    const recent = recentByChat.get(chatId) ?? []
+    const groups: StoryGroup[] = []
+    for (const item of items) {
+      const bigrams = titleBigrams(item.article.title)
+      if (recent.some((r) => isSameStory(r, bigrams))) {
+        result.suppressed += 1
+        continue
+      }
+      const same = groups.find((g) => isSameStory(g.bigrams, bigrams))
+      if (same) same.titles.push(item.article.title)
+      else groups.push({ ...item, bigrams, titles: [item.article.title] })
+    }
+    if (groups.length > 0) messages.push({ chatId, groups: groups.slice(0, 20) })
   }
 
-  result.matched_new_articles = new Set(messages.flatMap((m) => m.items.map((i) => i.article.source_url))).size
+  result.matched_new_articles = new Set(messages.flatMap((m) => m.groups.map((g) => g.article.source_url))).size
   result.total_targets = messages.length
   if (messages.length === 0 || opts.dryRun || (FORCE_DRY_RUN && !opts.onlyChatId)) return result
 
@@ -209,11 +250,12 @@ export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: 
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN missing')
 
   const results = await Promise.all(
-    messages.map(async ({ chatId, items }) => {
-      const lines = items.map(
-        ({ article, label }) => `• <a href="${article.source_url}">${htmlEscape(article.title)}</a> [${htmlEscape(label)}]`,
-      )
-      const msg = `🚨 <b>키워드 뉴스 알림</b>\n\n` + `${lines.join('\n')}\n\n` + `기준 키워드 건수: ${items.length}건`
+    messages.map(async ({ chatId, groups }) => {
+      const lines = groups.map(({ article, label, titles }) => {
+        const more = titles.length > 1 ? ` (외 ${titles.length - 1}건)` : ''
+        return `• <a href="${article.source_url}">${htmlEscape(decodeEntities(article.title))}</a>${more} [${htmlEscape(label)}]`
+      })
+      const msg = `🚨 <b>키워드 뉴스 알림</b>\n\n` + `${lines.join('\n')}\n\n` + `기준 키워드 건수: ${groups.length}건`
       try {
         const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
@@ -234,5 +276,20 @@ export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: 
     else result.failed_details.push({ chat_id: r.chatId, reason: r.reason })
   }
   result.failed = result.failed_details.length
+
+  // 보낸 기사 제목 기록 (테스트 발송은 기록하지 않음) + 보관 기간 지난 기록 정리
+  if (!opts.onlyChatId) {
+    const sentChats = new Set(results.filter((r) => r.ok).map((r) => r.chatId))
+    const rows = messages
+      .filter((m) => sentChats.has(m.chatId))
+      .flatMap((m) => m.groups.flatMap((g) => g.titles.map((title) => ({ chat_id: m.chatId, title }))))
+    if (rows.length > 0) {
+      const { error } = await supabaseAdmin.from('alert_deliveries').insert(rows)
+      if (error) console.error('[news alert] record deliveries failed:', error)
+    }
+    const cutoff = new Date(Date.now() - DELIVERY_RETENTION_MS).toISOString()
+    const { error: cleanupErr } = await supabaseAdmin.from('alert_deliveries').delete().lt('sent_at', cutoff)
+    if (cleanupErr) console.error('[news alert] cleanup deliveries failed:', cleanupErr)
+  }
   return result
 }
