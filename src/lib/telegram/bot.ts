@@ -1,22 +1,40 @@
 // src/lib/telegram/bot.ts
-// 텔레그램 봇 API 호출 + 개인 알림 키워드 명령어 (/add /list /del /help)
+// 텔레그램 봇 API 호출 + 개인 알림 키워드 (하단 메뉴 버튼 / 추천 키워드 버튼 / 명령어)
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { alertConditionOf } from '@/lib/news/keywords'
 
 export const MAX_PERSONAL_KEYWORDS = 5
 export const MAX_KEYWORD_LENGTH = 50
+/** "➕ 키워드 추가" 후 이 시간 안에 보낸 글은 키워드로 처리 (그 뒤엔 관리자 수신함으로) */
+const PENDING_ADD_TTL_MS = 2 * 60 * 1000
 
 /** 텔레그램 입력창 `/` 메뉴에 노출할 명령어 (webhook-setup 에서 setMyCommands 로 등록) */
 export const BOT_COMMANDS = [
-  { command: 'add', description: '내 알림 키워드 추가 (예: /add IPO, 상장)' },
+  { command: 'add', description: '내 알림 키워드 추가' },
   { command: 'list', description: '내 알림 키워드 보기·삭제' },
-  { command: 'del', description: '내 알림 키워드 삭제 (예: /del 1)' },
   { command: 'help', description: '사용법' },
   { command: 'start', description: '알림 구독 시작' },
   { command: 'stop', description: '알림 구독 중지' },
 ]
 
+const MENU_ADD = '➕ 키워드 추가'
+const MENU_LIST = '📋 내 키워드'
+const MENU_HELP = '❓ 사용법'
+
 type InlineKeyboard = { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> }
+type ReplyMarkup =
+  | InlineKeyboard
+  | { keyboard: Array<Array<{ text: string }>>; resize_keyboard?: boolean; is_persistent?: boolean }
+  | { force_reply: true; input_field_placeholder?: string }
+  | { remove_keyboard: true }
+
+/** 채팅창 하단 고정 메뉴 버튼 */
+export const MAIN_MENU: ReplyMarkup = {
+  keyboard: [[{ text: MENU_ADD }, { text: MENU_LIST }], [{ text: MENU_HELP }]],
+  resize_keyboard: true,
+  is_persistent: true,
+}
+export const REMOVE_MENU: ReplyMarkup = { remove_keyboard: true }
 
 function api(method: string) {
   return `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/${method}`
@@ -31,7 +49,7 @@ export async function callTelegram(method: string, body: Record<string, unknown>
   return res.json().catch(() => ({ ok: false, description: `HTTP ${res.status}` }))
 }
 
-export async function sendMessage(chatId: string, text: string, replyMarkup?: InlineKeyboard) {
+export async function sendMessage(chatId: string, text: string, replyMarkup?: ReplyMarkup) {
   await callTelegram('sendMessage', {
     chat_id: chatId,
     text,
@@ -58,11 +76,14 @@ const HELP_TEXT = `
 
 한화투자증권 관련 기사 중 내가 등록한 단어가 들어간 기사를 실시간으로 보내드립니다.
 
-<code>/add IPO</code> — 키워드 추가
-<code>/add IPO, 상장</code> — 둘 중 하나라도 있으면 알림 (OR)
-<code>/add 리테일 수수료</code> — 둘 다 있어야 알림 (AND)
-<code>/list</code> — 내 키워드 보기·삭제
-<code>/del 1</code> — 1번 키워드 삭제
+<b>${MENU_ADD}</b>
+채팅창 아래 버튼을 누른 뒤 추천 키워드를 누르거나, 원하는 단어를 입력해 보내주세요.
+• <code>IPO</code> — 이 단어가 있으면 알림
+• <code>IPO, 상장</code> — 둘 중 하나라도 있으면 알림
+• <code>리테일 수수료</code> — 둘 다 있어야 알림
+
+<b>${MENU_LIST}</b>
+등록한 키워드를 보고 🗑 버튼으로 삭제할 수 있습니다.
 
 키워드는 최대 ${MAX_PERSONAL_KEYWORDS}개까지 등록할 수 있습니다.
 `.trim()
@@ -85,25 +106,42 @@ async function listCommon(): Promise<string[]> {
   return Array.from(new Set((data ?? []).map(alertConditionOf).filter(Boolean)))
 }
 
-async function isActiveSubscriber(chatId: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from('telegram_subscribers')
-    .select('is_active')
-    .eq('chat_id', chatId)
-    .maybeSingle()
-  return Boolean(data?.is_active)
+async function listSuggested(): Promise<ChatKeyword[]> {
+  const { data, error } = await supabaseAdmin
+    .from('suggested_alert_keywords')
+    .select('id, keyword')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as ChatKeyword[]
 }
 
-/** /list 응답 본문 + 삭제 버튼 */
+async function getSubscriber(chatId: string) {
+  const { data } = await supabaseAdmin
+    .from('telegram_subscribers')
+    .select('is_active, pending_action, pending_action_at')
+    .eq('chat_id', chatId)
+    .maybeSingle()
+  return data as { is_active: boolean; pending_action: string | null; pending_action_at: string | null } | null
+}
+
+async function setPending(chatId: string, action: 'add' | null) {
+  const { error } = await supabaseAdmin
+    .from('telegram_subscribers')
+    .update({ pending_action: action, pending_action_at: action ? new Date().toISOString() : null })
+    .eq('chat_id', chatId)
+  if (error) console.error('[telegram bot] set pending failed:', error)
+}
+
+/** 내 키워드 목록 본문 + 삭제 버튼 */
 async function renderList(chatId: string): Promise<{ text: string; markup?: InlineKeyboard }> {
   const [common, personal] = await Promise.all([listCommon(), listPersonal(chatId)])
 
   const lines = ['📋 <b>내 알림 키워드</b>', '']
   if (personal.length === 0) {
-    lines.push('등록된 키워드가 없습니다.', '<code>/add 키워드</code> 로 추가해 보세요.')
+    lines.push('등록된 키워드가 없습니다.', `채팅창 아래 <b>${MENU_ADD}</b> 버튼을 눌러 추가해 보세요.`)
   } else {
     personal.forEach((k, i) => lines.push(`${i + 1}. ${htmlEscape(k.keyword)}`))
-    lines.push('', `(${personal.length}/${MAX_PERSONAL_KEYWORDS}) 아래 버튼으로 삭제할 수 있습니다.`)
+    lines.push('', `(${personal.length}/${MAX_PERSONAL_KEYWORDS}) 아래 🗑 버튼을 누르면 삭제됩니다.`)
   }
   if (common.length > 0) {
     lines.push('', '📢 <b>공용 키워드</b> (모든 구독자, 삭제 불가)')
@@ -121,44 +159,94 @@ async function renderList(chatId: string): Promise<{ text: string; markup?: Inli
   return { text: lines.join('\n'), markup }
 }
 
-async function handleAdd(chatId: string, args: string) {
-  const keyword = args.replace(/\s+/g, ' ').trim()
-  if (!keyword) {
-    await sendMessage(chatId, '추가할 키워드를 함께 입력해 주세요.\n예: <code>/add IPO, 상장</code>')
-    return
+/** "➕ 키워드 추가" 화면: 추천 키워드 버튼 + 직접 입력 안내 (null 이면 더 추가할 수 없음) */
+async function renderAddPrompt(chatId: string): Promise<{ text: string; markup: InlineKeyboard } | null> {
+  const [personal, suggested] = await Promise.all([listPersonal(chatId), listSuggested()])
+  if (personal.length >= MAX_PERSONAL_KEYWORDS) return null
+
+  const mine = new Set(personal.map((k) => k.keyword))
+  const available = suggested.filter((s) => !mine.has(s.keyword))
+
+  const lines = [`➕ <b>키워드 추가</b> (${personal.length}/${MAX_PERSONAL_KEYWORDS})`, '']
+  if (available.length > 0) lines.push('아래 추천 키워드를 누르면 바로 등록됩니다.', '')
+  lines.push(
+    '원하는 단어가 없으면 <b>이 채팅창에 단어를 입력</b>해 보내주세요.',
+    '예: <code>IPO</code>  /  <code>IPO, 상장</code> (둘 중 하나라도)',
+  )
+
+  const rows: InlineKeyboard['inline_keyboard'] = []
+  for (let i = 0; i < available.length; i += 3) {
+    rows.push(available.slice(i, i + 3).map((s) => ({ text: s.keyword.slice(0, 30), callback_data: `sug:${s.id}` })))
   }
-  if (keyword.length > MAX_KEYWORD_LENGTH) {
-    await sendMessage(chatId, `⚠️ 키워드는 ${MAX_KEYWORD_LENGTH}자 이내로 입력해 주세요.`)
-    return
-  }
-  if (!(await isActiveSubscriber(chatId))) {
+  rows.push([
+    { text: '✏️ 직접 입력', callback_data: 'input' },
+    { text: '✖ 닫기', callback_data: 'cancel' },
+  ])
+  return { text: lines.join('\n'), markup: { inline_keyboard: rows } }
+}
+
+async function sendLimitReached(chatId: string) {
+  await sendMessage(
+    chatId,
+    `⚠️ 키워드는 최대 ${MAX_PERSONAL_KEYWORDS}개까지 등록할 수 있습니다.\n<b>${MENU_LIST}</b> 에서 기존 키워드를 삭제한 뒤 추가해 주세요.`,
+    MAIN_MENU,
+  )
+}
+
+async function startAddFlow(chatId: string) {
+  const sub = await getSubscriber(chatId)
+  if (!sub?.is_active) {
     await sendMessage(chatId, '먼저 <code>/start</code> 로 알림을 구독해 주세요.')
     return
+  }
+  const prompt = await renderAddPrompt(chatId)
+  if (!prompt) {
+    await sendLimitReached(chatId)
+    return
+  }
+  await setPending(chatId, 'add')
+  await sendMessage(chatId, prompt.text, prompt.markup)
+}
+
+/** 키워드 등록. 성공하면 true */
+async function handleAdd(chatId: string, raw: string): Promise<boolean> {
+  const keyword = raw.replace(/\s+/g, ' ').trim()
+  if (!keyword) {
+    await startAddFlow(chatId)
+    return false
+  }
+  if (keyword.length > MAX_KEYWORD_LENGTH) {
+    await sendMessage(chatId, `⚠️ 키워드는 ${MAX_KEYWORD_LENGTH}자 이내로 입력해 주세요.`, MAIN_MENU)
+    return false
+  }
+  const sub = await getSubscriber(chatId)
+  if (!sub?.is_active) {
+    await sendMessage(chatId, '먼저 <code>/start</code> 로 알림을 구독해 주세요.')
+    return false
   }
 
   const personal = await listPersonal(chatId)
   if (personal.some((k) => k.keyword === keyword)) {
-    await sendMessage(chatId, `이미 등록된 키워드입니다: <b>${htmlEscape(keyword)}</b>`)
-    return
+    await sendMessage(chatId, `이미 등록된 키워드입니다: <b>${htmlEscape(keyword)}</b>`, MAIN_MENU)
+    return false
   }
   if (personal.length >= MAX_PERSONAL_KEYWORDS) {
-    await sendMessage(
-      chatId,
-      `⚠️ 키워드는 최대 ${MAX_PERSONAL_KEYWORDS}개까지 등록할 수 있습니다.\n<code>/list</code> 에서 기존 키워드를 삭제한 뒤 추가해 주세요.`,
-    )
-    return
+    await sendLimitReached(chatId)
+    return false
   }
 
   const { error } = await supabaseAdmin.from('chat_alert_keywords').insert({ chat_id: chatId, keyword })
   if (error) {
     console.error('[telegram bot] add keyword failed:', error)
-    await sendMessage(chatId, '⚠️ 키워드 등록에 실패했습니다. 잠시 후 다시 시도해 주세요.')
-    return
+    await sendMessage(chatId, '⚠️ 키워드 등록에 실패했습니다. 잠시 후 다시 시도해 주세요.', MAIN_MENU)
+    return false
   }
   await sendMessage(
     chatId,
     `✅ <b>${htmlEscape(keyword)}</b> 등록했습니다. (${personal.length + 1}/${MAX_PERSONAL_KEYWORDS})\n한화투자증권 기사 중 이 키워드가 들어가면 알려드릴게요.`,
+    MAIN_MENU,
   )
+  return true
 }
 
 async function handleDelByIndex(chatId: string, args: string) {
@@ -167,11 +255,11 @@ async function handleDelByIndex(chatId: string, args: string) {
   const target = Number.isInteger(n) && n >= 1 ? personal[n - 1] : undefined
   if (!target) {
     const { text, markup } = await renderList(chatId)
-    await sendMessage(chatId, `삭제할 번호를 확인해 주세요. 예: <code>/del 1</code>\n\n${text}`, markup)
+    await sendMessage(chatId, text, markup)
     return
   }
   await deleteById(chatId, target.id)
-  await sendMessage(chatId, `🗑 <b>${htmlEscape(target.keyword)}</b> 삭제했습니다.`)
+  await sendMessage(chatId, `🗑 <b>${htmlEscape(target.keyword)}</b> 삭제했습니다.`, MAIN_MENU)
 }
 
 async function deleteById(chatId: string, id: string) {
@@ -185,53 +273,144 @@ async function deleteById(chatId: string, id: string) {
   return (data?.[0]?.keyword as string | undefined) ?? null
 }
 
+async function sendList(chatId: string) {
+  const { text, markup } = await renderList(chatId)
+  await sendMessage(chatId, text, markup)
+}
+
 /** 개인 키워드 명령어면 처리하고 true, 아니면 false */
 export async function handleKeywordCommand(chatId: string, cmd: string, args: string): Promise<boolean> {
   switch (cmd) {
     case '/add':
-      await handleAdd(chatId, args)
+      if (args) await handleAdd(chatId, args)
+      else await startAddFlow(chatId)
       return true
-    case '/list': {
-      const { text, markup } = await renderList(chatId)
-      await sendMessage(chatId, text, markup)
+    case '/list':
+      await setPending(chatId, null)
+      await sendList(chatId)
       return true
-    }
     case '/del':
+      await setPending(chatId, null)
       await handleDelByIndex(chatId, args)
       return true
     case '/help':
-      await sendMessage(chatId, HELP_TEXT)
+      await setPending(chatId, null)
+      await sendMessage(chatId, HELP_TEXT, MAIN_MENU)
       return true
     default:
       return false
   }
 }
 
-/** /list 의 🗑 버튼 처리 */
+/**
+ * 명령어가 아닌 일반 글 처리: 하단 메뉴 버튼, 또는 "➕ 키워드 추가" 직후 입력한 키워드.
+ * 처리했으면 true (false 면 관리자 수신함으로 보낸다)
+ */
+export async function handleKeywordText(chatId: string, text: string): Promise<boolean> {
+  const t = text.trim()
+  if (t === MENU_ADD) {
+    await startAddFlow(chatId)
+    return true
+  }
+  if (t === MENU_LIST) {
+    await setPending(chatId, null)
+    await sendList(chatId)
+    return true
+  }
+  if (t === MENU_HELP) {
+    await setPending(chatId, null)
+    await sendMessage(chatId, HELP_TEXT, MAIN_MENU)
+    return true
+  }
+
+  const sub = await getSubscriber(chatId)
+  const pendingAt = sub?.pending_action_at ? new Date(sub.pending_action_at).getTime() : 0
+  if (sub?.pending_action === 'add' && Date.now() - pendingAt < PENDING_ADD_TTL_MS) {
+    await setPending(chatId, null)
+    await handleAdd(chatId, t)
+    return true
+  }
+  return false
+}
+
+/** /stop 등에서 추가 대기 상태 해제 */
+export async function clearPending(chatId: string) {
+  await setPending(chatId, null)
+}
+
+/** 인라인 버튼 처리: 🗑 삭제 / 추천 키워드 등록 / 직접 입력 / 닫기 */
 export async function handleCallbackQuery(query: {
   id: string
   data?: string
   message?: { chat?: { id?: number | string }; message_id?: number }
 }) {
   const chatId = query.message?.chat?.id != null ? String(query.message.chat.id) : null
+  const messageId = query.message?.message_id
   const data = query.data ?? ''
-  if (!chatId || !data.startsWith('del:')) {
-    await callTelegram('answerCallbackQuery', { callback_query_id: query.id })
+  const answer = (text?: string) =>
+    callTelegram('answerCallbackQuery', { callback_query_id: query.id, ...(text ? { text } : {}) })
+  const editMessage = (text: string, markup?: InlineKeyboard) =>
+    callTelegram('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: 'HTML',
+      reply_markup: markup ?? { inline_keyboard: [] },
+    })
+
+  if (!chatId) {
+    await answer()
     return
   }
 
-  const deleted = await deleteById(chatId, data.slice(4))
-  await callTelegram('answerCallbackQuery', {
-    callback_query_id: query.id,
-    text: deleted ? `삭제했습니다: ${deleted}` : '이미 삭제된 키워드입니다.',
-  })
+  if (data.startsWith('del:')) {
+    const deleted = await deleteById(chatId, data.slice(4))
+    await answer(deleted ? `삭제했습니다: ${deleted}` : '이미 삭제된 키워드입니다.')
+    const { text, markup } = await renderList(chatId)
+    await editMessage(text, markup)
+    return
+  }
 
-  const { text, markup } = await renderList(chatId)
-  await callTelegram('editMessageText', {
-    chat_id: chatId,
-    message_id: query.message?.message_id,
-    text,
-    parse_mode: 'HTML',
-    reply_markup: markup ?? { inline_keyboard: [] },
-  })
+  if (data.startsWith('sug:')) {
+    const { data: row } = await supabaseAdmin
+      .from('suggested_alert_keywords')
+      .select('keyword')
+      .eq('id', data.slice(4))
+      .maybeSingle()
+    if (!row?.keyword) {
+      await answer('추천 목록에서 빠진 키워드입니다.')
+    } else {
+      await answer()
+      await handleAdd(chatId, String(row.keyword))
+    }
+    // 여러 개를 연달아 누를 수 있도록 남은 추천 키워드로 화면 갱신
+    const prompt = await renderAddPrompt(chatId)
+    if (prompt) {
+      await setPending(chatId, 'add')
+      await editMessage(prompt.text, prompt.markup)
+    } else {
+      await setPending(chatId, null)
+      await editMessage(`➕ <b>키워드 추가</b>\n\n최대 ${MAX_PERSONAL_KEYWORDS}개를 모두 등록했습니다.`)
+    }
+    return
+  }
+
+  if (data === 'input') {
+    await answer()
+    await setPending(chatId, 'add')
+    await sendMessage(chatId, '✏️ 추가할 키워드를 입력해 보내주세요.', {
+      force_reply: true,
+      input_field_placeholder: '예: IPO, 상장',
+    })
+    return
+  }
+
+  if (data === 'cancel') {
+    await answer('닫았습니다.')
+    await setPending(chatId, null)
+    await editMessage('➕ 키워드 추가를 닫았습니다.')
+    return
+  }
+
+  await answer()
 }

@@ -1,7 +1,16 @@
 // src/app/api/telegram/webhook/route.ts
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { handleCallbackQuery, handleKeywordCommand, parseCommand, sendMessage } from '@/lib/telegram/bot'
+import {
+  MAIN_MENU,
+  REMOVE_MENU,
+  clearPending,
+  handleCallbackQuery,
+  handleKeywordCommand,
+  handleKeywordText,
+  parseCommand,
+  sendMessage,
+} from '@/lib/telegram/bot'
 
 const DEFAULT_START_MESSAGE = `
 🎉 <b>환영합니다! 뉴스 알림 구독이 완료되었습니다.</b>
@@ -18,7 +27,7 @@ const DEFAULT_START_MESSAGE = `
 전산장애,전산오류,장애,오류,민원,소송,금융감독원,금감원
 
 💡 나만의 키워드도 등록할 수 있습니다.
-<code>/add IPO</code> 처럼 입력하면 해당 단어가 들어간 기사도 알려드려요. (사용법: <code>/help</code>)
+채팅창 아래 <b>➕ 키워드 추가</b> 버튼을 눌러보세요.
 
 알림을 끄고 싶으시면 <code>/stop</code>을 입력해주세요.
 `.trim()
@@ -96,7 +105,7 @@ export async function POST(request: Request) {
         await sendMessage(chatId, '⚠️ 구독 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.')
       } else {
         const startMessage = await getStartMessageTemplate()
-        await sendMessage(chatId, startMessage)
+        await sendMessage(chatId, startMessage, MAIN_MENU)
       }
     } 
     // 2. /stop 명령어가 오면 구독 정지
@@ -110,14 +119,19 @@ export async function POST(request: Request) {
         console.error('[telegram webhook] unsubscribe update failed:', error)
         await sendMessage(chatId, '⚠️ 알림 중지 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.')
       } else {
-        await sendMessage(chatId, '🔕 <b>알림이 중지되었습니다.</b>\n다시 받으려면 <code>/start</code>를 입력하세요.')
+        await clearPending(chatId)
+        await sendMessage(chatId, '🔕 <b>알림이 중지되었습니다.</b>\n다시 받으려면 <code>/start</code>를 입력하세요.', REMOVE_MENU)
       }
     }
     // 3. 개인 알림 키워드 명령어 (/add /list /del /help)
     else if (parsed && (await handleKeywordCommand(chatId, parsed.cmd, parsed.args))) {
       // handled
     }
-    // 4. 일반 메시지는 관리자 수신함에 저장
+    // 4. 하단 메뉴 버튼, "➕ 키워드 추가" 직후 입력한 키워드
+    else if (!parsed && textValue && (await handleKeywordText(chatId, textValue))) {
+      // handled
+    }
+    // 5. 일반 메시지는 관리자 수신함에 저장
     else if (textValue) {
       const { error } = await supabaseAdmin.from('telegram_inbox').insert({
         chat_id: chatId,

@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireCronOrSession } from '@/lib/requireCronOrSession'
+import { MAIN_MENU } from '@/lib/telegram/bot'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
             chat_id: sub.chat_id,
             text: message, // 입력받은 메시지 그대로 전송
             parse_mode: 'HTML', // HTML 태그 지원 (<b>, <i> 등 사용 가능)
+            reply_markup: MAIN_MENU, // 기존 구독자에게도 하단 메뉴 버튼(키워드 추가 등) 표시
           }),
         })
         
