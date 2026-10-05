@@ -5,7 +5,7 @@
 //   ?dry=1                     수집·매칭만 하고 DB 저장·발송 안 함
 //   ?test_chat_id=<id>         DB 저장 안 함, 알림은 이 chat_id 에만 발송
 //   ?recheck_hours=<n>         새 수집 대신 최근 n시간 저장된 기사로 알림 매칭 (dry 또는 test_chat_id 와 함께)
-//   ?night_digest=1            지난밤(22~07시) 수집 기사로 아침 정리 메시지 확인 (dry 또는 test_chat_id 와 함께)
+//   ?night_digest=1            지난밤(23~06시) 수집 기사로 아침 정리 메시지 확인 (dry 또는 test_chat_id 와 함께)
 // 테스트 모드는 크론 시크릿 대신 뉴스 관리자 로그인 세션으로도 호출 가능 (브라우저 주소창에서 확인용)
 import { NextResponse } from 'next/server'
 import { getSessionUser, isValidCronSecret } from '@/lib/requireCronOrSession'
@@ -13,7 +13,7 @@ import { isNewsAdminEmail } from '@/lib/newsAdmin'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { collectBaseNews, isNightDigestTime, lastNightWindow, sendKeywordAlerts } from '@/lib/news/collect'
 
-/** 지난밤(어제 22시 ~ 오늘 7시 KST)에 수집된 기사 */
+/** 지난밤(어제 23시 ~ 오늘 6시 KST)에 수집된 기사 */
 async function loadNightArticles() {
   const { from, to } = lastNightWindow()
   const { data, error } = await supabaseAdmin
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
     const { saved, logs } = await collectBaseNews({ dryRun })
     const telegram = await sendKeywordAlerts(saved, { dryRun: dryRun && !testChatId, onlyChatId: testChatId })
 
-    // 아침 7시: 야간 알림 모아 받기를 켠 사람에게 밤사이 기사 정리 발송
+    // 아침 6시: 야간 알림 모아 받기를 켠 사람에게 밤사이 기사 정리 발송
     let nightDigest: Awaited<ReturnType<typeof sendKeywordAlerts>> | null = null
     if (!dryRun && isNightDigestTime()) {
       nightDigest = await sendKeywordAlerts(await loadNightArticles(), { nightDigest: true })
