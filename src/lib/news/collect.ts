@@ -15,6 +15,38 @@ const SAME_STORY_SUPPRESS_MS = 24 * 3600 * 1000
 /** 보낸 기사 기록 보관 기간 (지난 기록은 정리) */
 const DELIVERY_RETENTION_MS = 3 * 24 * 3600 * 1000
 
+// --- 야간 알림 모아 받기 (telegram_subscribers.night_mode) ---
+// 켠 사람은 22시~07시(KST)에 키워드 알림을 받지 않고, 07시에 밤사이 기사를 한 번에 받는다.
+const KST_OFFSET_MS = 9 * 3600 * 1000
+const NIGHT_START_HOUR = 22
+const NIGHT_END_HOUR = 7
+/** 07:00 이후 이 시간 안의 크론 실행에서 아침 정리를 보낸다 (중복 실행은 alert_deliveries 로 걸러짐) */
+const DIGEST_SEND_MINUTES = 15
+
+function kstClock(now: Date) {
+  const kst = new Date(now.getTime() + KST_OFFSET_MS)
+  return { hour: kst.getUTCHours(), minute: kst.getUTCMinutes(), kst }
+}
+
+export function isNightHours(now = new Date()) {
+  const { hour } = kstClock(now)
+  return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR
+}
+
+export function isNightDigestTime(now = new Date()) {
+  const { hour, minute } = kstClock(now)
+  return hour === NIGHT_END_HOUR && minute < DIGEST_SEND_MINUTES
+}
+
+/** 가장 최근에 끝난 야간 구간 (어제 22:00 ~ 오늘 07:00 KST) */
+export function lastNightWindow(now = new Date()) {
+  const { kst } = kstClock(now)
+  const today7 = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), NIGHT_END_HOUR) - KST_OFFSET_MS
+  const end = now.getTime() >= today7 ? today7 : today7 - 24 * 3600 * 1000
+  const hours = 24 - NIGHT_START_HOUR + NIGHT_END_HOUR
+  return { from: new Date(end - hours * 3600 * 1000).toISOString(), to: new Date(end).toISOString() }
+}
+
 /** 로컬 테스트 안전장치: NEWS_ALERT_DRY_RUN=1 이면 DB 저장·구독자 발송을 하지 않는다 (onlyChatId 발송만 허용) */
 const FORCE_DRY_RUN = process.env.NEWS_ALERT_DRY_RUN === '1'
 
@@ -129,15 +161,21 @@ type AlertArticle = Pick<SavedArticle, 'title' | 'content' | 'source_url'>
  * - 개인 키워드(chat_alert_keywords): 그 대화방에만
  * 한 대화방에는 걸린 기사를 메시지 1통으로 묶어 보낸다 (같은 기사는 1번만).
  * 제목이 비슷한 "같은 이야기"는 한 줄로 묶고, 24시간 안에 이미 보낸 이야기는 다시 보내지 않는다.
+ * 야간 알림 모아 받기를 켠 사람은 야간에는 빼고, nightDigest 호출(아침 7시)에서만 받는다.
  * dryRun: 발송하지 않고 매칭 결과만 반환 / onlyChatId: 이 chat_id 에만 발송 (테스트용)
  */
-export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: boolean; onlyChatId?: string } = {}) {
+export async function sendKeywordAlerts(
+  saved: AlertArticle[],
+  opts: { dryRun?: boolean; onlyChatId?: string; nightDigest?: boolean } = {},
+) {
   const result = {
     conditions: [] as string[],
     matched: [] as Array<{ title: string; source_url: string; condition: string }>,
     personal_matched: [] as Array<{ chat_id: string; title: string; condition: string }>,
     /** 최근 24시간 안에 같은 이야기를 이미 보내서 뺀 건수 (대화방별 합계) */
     suppressed: 0,
+    /** 야간 알림 모아 받기를 켜서 이번 발송에서 빠진 대화방 수 */
+    night_held: 0,
     matched_new_articles: 0,
     total_targets: 0,
     sent: 0,
@@ -161,10 +199,18 @@ export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: 
   } else {
     const { data: subs, error: subsErr } = await supabaseAdmin
       .from('telegram_subscribers')
-      .select('chat_id')
+      .select('chat_id, night_mode')
       .eq('is_active', true)
     if (subsErr) throw subsErr
-    chatIds = (subs ?? []).map((s) => String((s as { chat_id: string }).chat_id))
+    const rows = (subs ?? []) as Array<{ chat_id: string; night_mode: boolean | null }>
+    if (opts.nightDigest) {
+      chatIds = rows.filter((s) => s.night_mode).map((s) => String(s.chat_id))
+    } else if (isNightHours()) {
+      result.night_held = rows.filter((s) => s.night_mode).length
+      chatIds = rows.filter((s) => !s.night_mode).map((s) => String(s.chat_id))
+    } else {
+      chatIds = rows.map((s) => String(s.chat_id))
+    }
   }
 
   // 대화방별 개인 키워드
@@ -255,7 +301,8 @@ export async function sendKeywordAlerts(saved: AlertArticle[], opts: { dryRun?: 
         const more = titles.length > 1 ? ` (외 ${titles.length - 1}건)` : ''
         return `• <a href="${article.source_url}">${htmlEscape(decodeEntities(article.title))}</a>${more} [${htmlEscape(label)}]`
       })
-      const msg = `🚨 <b>키워드 뉴스 알림</b>\n\n` + `${lines.join('\n')}\n\n` + `기준 키워드 건수: ${groups.length}건`
+      const header = opts.nightDigest ? `🌙 <b>밤사이 키워드 뉴스</b> (22시~7시)` : `🚨 <b>키워드 뉴스 알림</b>`
+      const msg = `${header}\n\n` + `${lines.join('\n')}\n\n` + `기준 키워드 건수: ${groups.length}건`
       try {
         const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',

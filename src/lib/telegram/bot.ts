@@ -12,6 +12,7 @@ const PENDING_ADD_TTL_MS = 2 * 60 * 1000
 export const BOT_COMMANDS = [
   { command: 'add', description: '내 알림 키워드 추가' },
   { command: 'list', description: '내 알림 키워드 보기·삭제' },
+  { command: 'night', description: '야간 알림 설정 (밤에는 모아서 아침에)' },
   { command: 'help', description: '사용법' },
   { command: 'start', description: '알림 구독 시작' },
   { command: 'stop', description: '알림 구독 중지' },
@@ -20,6 +21,7 @@ export const BOT_COMMANDS = [
 const MENU_ADD = '➕ 키워드 추가'
 const MENU_LIST = '📋 내 키워드'
 const MENU_HELP = '❓ 사용법'
+const MENU_NIGHT = '🌙 야간 알림'
 
 type InlineKeyboard = { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> }
 type ReplyMarkup =
@@ -30,7 +32,10 @@ type ReplyMarkup =
 
 /** 채팅창 하단 고정 메뉴 버튼 */
 export const MAIN_MENU: ReplyMarkup = {
-  keyboard: [[{ text: MENU_ADD }, { text: MENU_LIST }], [{ text: MENU_HELP }]],
+  keyboard: [
+    [{ text: MENU_ADD }, { text: MENU_LIST }],
+    [{ text: MENU_NIGHT }, { text: MENU_HELP }],
+  ],
   resize_keyboard: true,
   is_persistent: true,
 }
@@ -85,6 +90,9 @@ const HELP_TEXT = `
 <b>${MENU_LIST}</b>
 등록한 키워드를 보고 🗑 버튼으로 삭제할 수 있습니다.
 
+<b>${MENU_NIGHT}</b>
+켜면 밤 10시~아침 7시에는 키워드 알림을 보내지 않고, 아침 7시에 밤사이 기사를 한 번에 보내드립니다.
+
 키워드는 최대 ${MAX_PERSONAL_KEYWORDS}개까지 등록할 수 있습니다.
 `.trim()
 
@@ -109,10 +117,41 @@ async function listCommon(): Promise<string[]> {
 async function getSubscriber(chatId: string) {
   const { data } = await supabaseAdmin
     .from('telegram_subscribers')
-    .select('is_active, pending_action, pending_action_at')
+    .select('is_active, pending_action, pending_action_at, night_mode')
     .eq('chat_id', chatId)
     .maybeSingle()
-  return data as { is_active: boolean; pending_action: string | null; pending_action_at: string | null } | null
+  return data as {
+    is_active: boolean
+    pending_action: string | null
+    pending_action_at: string | null
+    night_mode: boolean | null
+  } | null
+}
+
+/** 야간 알림 설정 화면 본문 + 켜기/끄기 버튼 */
+function renderNight(on: boolean): { text: string; markup: InlineKeyboard } {
+  const text = [
+    `🌙 <b>야간 알림 설정</b>`,
+    '',
+    `현재: <b>${on ? '켜짐 — 밤에는 모아서 아침 7시에 받기' : '꺼짐 — 밤에도 바로 받기'}</b>`,
+    '',
+    '켜면 밤 10시~아침 7시에 걸린 키워드 기사를 바로 보내지 않고, 아침 7시에 한 번에 모아서 보내드립니다.',
+    '(오후 5시 뉴스 브리핑은 그대로 받습니다)',
+  ].join('\n')
+  const markup = {
+    inline_keyboard: [[on ? { text: '🔔 끄기 (밤에도 바로 받기)', callback_data: 'night:off' } : { text: '🌙 켜기 (아침에 모아 받기)', callback_data: 'night:on' }]],
+  }
+  return { text, markup }
+}
+
+async function sendNightSettings(chatId: string) {
+  const sub = await getSubscriber(chatId)
+  if (!sub?.is_active) {
+    await sendMessage(chatId, '먼저 <code>/start</code> 로 알림을 구독해 주세요.')
+    return
+  }
+  const { text, markup } = renderNight(Boolean(sub.night_mode))
+  await sendMessage(chatId, text, markup)
 }
 
 async function setPending(chatId: string, action: 'add' | null) {
@@ -268,6 +307,10 @@ export async function handleKeywordCommand(chatId: string, cmd: string, args: st
       await setPending(chatId, null)
       await handleDelByIndex(chatId, args)
       return true
+    case '/night':
+      await setPending(chatId, null)
+      await sendNightSettings(chatId)
+      return true
     case '/help':
       await setPending(chatId, null)
       await sendMessage(chatId, HELP_TEXT, MAIN_MENU)
@@ -292,6 +335,11 @@ export async function handleKeywordText(chatId: string, text: string): Promise<b
     await sendList(chatId)
     return true
   }
+  if (t === MENU_NIGHT) {
+    await setPending(chatId, null)
+    await sendNightSettings(chatId)
+    return true
+  }
   if (t === MENU_HELP) {
     await setPending(chatId, null)
     await sendMessage(chatId, HELP_TEXT, MAIN_MENU)
@@ -313,7 +361,7 @@ export async function clearPending(chatId: string) {
   await setPending(chatId, null)
 }
 
-/** 인라인 버튼 처리: 내 키워드 목록의 🗑 삭제 */
+/** 인라인 버튼 처리: 내 키워드 목록의 🗑 삭제 / 야간 알림 켜기·끄기 */
 export async function handleCallbackQuery(query: {
   id: string
   data?: string
@@ -335,6 +383,20 @@ export async function handleCallbackQuery(query: {
 
   if (!chatId) {
     await answer()
+    return
+  }
+
+  if (data === 'night:on' || data === 'night:off') {
+    const on = data === 'night:on'
+    const { error } = await supabaseAdmin.from('telegram_subscribers').update({ night_mode: on }).eq('chat_id', chatId)
+    if (error) {
+      console.error('[telegram bot] night mode update failed:', error)
+      await answer('설정을 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요.')
+      return
+    }
+    await answer(on ? '야간 알림을 아침에 모아 받습니다.' : '밤에도 바로 받습니다.')
+    const { text, markup } = renderNight(on)
+    await editMessage(text, markup)
     return
   }
 
