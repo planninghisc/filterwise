@@ -202,38 +202,49 @@ export default function NewsAlertPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  // 서로 독립적인 조회라 동시에 요청한다 (순서대로 기다리면 요청 수만큼 느려짐)
   const fetchData = useCallback(async () => {
-    const keyRes = await fetch('/api/news/alert-keywords', { cache: 'no-store' })
-    const keyJson = await keyRes.json().catch(() => ({ ok: false }))
-    if (keyRes.ok && keyJson.ok && Array.isArray(keyJson.list)) {
-      setKeywords(keyJson.list as AlertKeyword[])
+    const loadKeywords = async () => {
+      const keyRes = await fetch('/api/news/alert-keywords', { cache: 'no-store' })
+      const keyJson = await keyRes.json().catch(() => ({ ok: false }))
+      if (keyRes.ok && keyJson.ok && Array.isArray(keyJson.list)) {
+        setKeywords(keyJson.list as AlertKeyword[])
+      }
     }
 
-    const personalRes = await fetch('/api/news/alert-keywords/personal', { cache: 'no-store' })
-    const personalJson = await personalRes.json().catch(() => ({ ok: false }))
-    if (personalRes.ok && personalJson.ok && Array.isArray(personalJson.list)) {
-      setPersonalKeywords(personalJson.list as PersonalKeyword[])
+    const loadPersonal = async () => {
+      const personalRes = await fetch('/api/news/alert-keywords/personal', { cache: 'no-store' })
+      const personalJson = await personalRes.json().catch(() => ({ ok: false }))
+      if (personalRes.ok && personalJson.ok && Array.isArray(personalJson.list)) {
+        setPersonalKeywords(personalJson.list as PersonalKeyword[])
+      }
     }
 
-    const countRes = await fetch('/api/telegram/subscribers/count', { cache: 'no-store' })
-    const countJson = await countRes.json().catch(() => ({ ok: false }))
-    if (countRes.ok && typeof countJson.count === 'number') {
-      setSubCount(countJson.count)
-    } else {
-      // Fallback: keep previous behavior if API auth/session is unavailable.
-      const { count } = await supabase
-        .from('telegram_subscribers')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true)
-      if (count !== null) setSubCount(count)
+    const loadCount = async () => {
+      const countRes = await fetch('/api/telegram/subscribers/count', { cache: 'no-store' })
+      const countJson = await countRes.json().catch(() => ({ ok: false }))
+      if (countRes.ok && typeof countJson.count === 'number') {
+        setSubCount(countJson.count)
+      } else {
+        // Fallback: keep previous behavior if API auth/session is unavailable.
+        const { count } = await supabase
+          .from('telegram_subscribers')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_active', true)
+        if (count !== null) setSubCount(count)
+      }
     }
 
-    const settingsRes = await fetch('/api/telegram/settings', { cache: 'no-store' })
-    const settingsJson = await settingsRes.json().catch(() => ({ ok: false }))
-    if (settingsRes.ok && settingsJson.ok) {
-      const template = String(settingsJson.item?.start_message_template ?? '').trim()
-      if (template) setStartMessageTemplate(template)
+    const loadSettings = async () => {
+      const settingsRes = await fetch('/api/telegram/settings', { cache: 'no-store' })
+      const settingsJson = await settingsRes.json().catch(() => ({ ok: false }))
+      if (settingsRes.ok && settingsJson.ok) {
+        const template = String(settingsJson.item?.start_message_template ?? '').trim()
+        if (template) setStartMessageTemplate(template)
+      }
     }
+
+    await Promise.all([loadKeywords(), loadPersonal(), loadCount(), loadSettings()])
   }, [supabase])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -499,4 +510,4 @@ export default function NewsAlertPage() {
       </section>
     </div>
   )
-}
+}
