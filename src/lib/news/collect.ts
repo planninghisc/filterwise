@@ -7,6 +7,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fetchNaverNews } from '@/lib/news/ingestNaver'
 import { BASE_KEYWORDS, alertConditionOf } from '@/lib/news/keywords'
 import { decodeEntities, isSameStory, titleBigrams } from '@/lib/news/similarity'
+import { MAIN_MENU } from '@/lib/telegram/bot'
 
 export { BASE_KEYWORDS }
 
@@ -307,7 +308,8 @@ export async function sendKeywordAlerts(
         const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML', disable_web_page_preview: true }),
+          // reply_markup: 알림을 받을 때마다 하단 메뉴 버튼을 최신 상태로 맞춘다
+          body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: MAIN_MENU }),
         })
         const j = await res.json()
         if (res.ok && j?.ok) return { ok: true as const, chatId }

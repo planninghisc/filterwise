@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { isValidCronSecret } from '@/lib/requireCronOrSession'
 import { getStockInfo } from '@/lib/naverStock'
+import { MAIN_MENU } from '@/lib/telegram/bot'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -100,7 +101,8 @@ export async function GET(request: Request) {
             const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: chat_id, text: message, parse_mode: 'HTML' })
+                // reply_markup: 매일 브리핑으로 하단 메뉴 버튼을 최신 상태로 맞춘다
+                body: JSON.stringify({ chat_id: chat_id, text: message, parse_mode: 'HTML', reply_markup: MAIN_MENU })
             })
 
             const json = await res.json()
