@@ -4,23 +4,16 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
+import { classifySentiment } from '@/lib/news/sentiment'
 import { BarChart, Bar, Line, ComposedChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { Newspaper, Search, Beaker, Calendar, ChevronDown, ChevronUp, Copy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
-// 1. 감성 분석 관련
-const POSITIVE_WORDS = ['상승', '급등', '최고', '호재', '개선', '성장', '이익', '흑자', '매수', '확대', '기대', '강세', '회복', '달성', '돌파', '성공', '유망', '긍정', '도약', '체결', '오름'];
-const NEGATIVE_WORDS = ['하락', '급락', '최저', '악재', '악화', '감소', '손실', '적자', '매도', '축소', '우려', '약세', '둔화', '미달', '이탈', '실패', '불확실', '부정', '리스크', '징계', '내림'];
-
-const analyzeSentiment = (text: string) => {
-    let score = 0;
-    const target = text.toLowerCase();
-    POSITIVE_WORDS.forEach(word => { if (target.includes(word)) score += 1; });
-    NEGATIVE_WORDS.forEach(word => { if (target.includes(word)) score -= 1; });
-
-    if (score > 0) return { label: '긍정', color: 'text-green-700 bg-green-50 border-green-200', emoji: '🙂' };
-    if (score < 0) return { label: '부정', color: 'text-red-700 bg-red-50 border-red-200', emoji: '🙁' };
-    return { label: '중립', color: 'text-gray-600 bg-gray-50 border-gray-200', emoji: '😐' };
-}
+// 1. 감성 분석 (규칙: src/lib/news/sentiment.ts)
+const SENTIMENT_STYLE = {
+    긍정: { label: '긍정', color: 'text-green-700 bg-green-50 border-green-200', emoji: '🙂' },
+    부정: { label: '부정', color: 'text-red-700 bg-red-50 border-red-200', emoji: '🙁' },
+    중립: { label: '중립', color: 'text-gray-600 bg-gray-50 border-gray-200', emoji: '😐' },
+} as const;
 
 // 2. 날짜/텍스트 유틸리티
 const toKSTString = (date?: Date | string | null) => {
@@ -59,7 +52,7 @@ const ArticleCard = ({ articles, keyword }: { articles: any[], keyword: string }
     const duplicateCount = articles.length - 1; 
     const titleText = cleanText(mainItem.title);
     const contentText = cleanText(mainItem.content || mainItem.snippet || ''); 
-    const sentiment = analyzeSentiment(titleText + " " + contentText);
+    const sentiment = SENTIMENT_STYLE[classifySentiment(titleText, contentText)];
 
     return (
         <a href={mainItem.source_url} className="block p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md hover:border-orange-200 transition-all group relative overflow-hidden">
