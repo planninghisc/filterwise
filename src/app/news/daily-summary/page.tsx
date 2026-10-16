@@ -5,6 +5,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { classifySentiment } from '@/lib/news/sentiment'
+import { isResearchArticle } from '@/lib/news/research'
 import { BarChart, Bar, Line, ComposedChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { Newspaper, Search, Beaker, Calendar, ChevronDown, ChevronUp, Copy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
@@ -131,10 +132,10 @@ function SummaryContent() {
         const research: any[][] = [];
         groupedArticles.forEach((group) => {
             const mainItem = group[0];
-            const combinedText = (mainItem.title + (mainItem.content || '') + (mainItem.description || '')).toLowerCase();
             const isManualGeneral = group.some((item: any) => item.category === 'general'); 
             const isManualResearch = group.some((item: any) => item.category === 'research'); 
-            const hasKeyword = (combinedText.includes('연구원') || combinedText.includes('애널리스트') || combinedText.includes('리포트'));
+            // 우리 회사 리서치가 다뤄진 기사인지 (규칙: src/lib/news/research.ts)
+            const hasKeyword = isResearchArticle(mainItem.title, mainItem.content || mainItem.description || '');
 
             if (isManualGeneral) general.push(group);
             else if (isManualResearch || hasKeyword) research.push(group);
